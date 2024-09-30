@@ -32,10 +32,10 @@ void addEnemy(Vector2 position, enum EnemyType type, GameState* game_state) {
     game_state->enemies[game_state->enemy_count++] = *enemy;
 }
 
-Vector2 fromIso(Vector2 screen, int screenWidth) {
+Vector2 fromIso(Vector2 screen, int screen_width) {
     Vector2 result = {};
 
-    screen.x -= screenWidth / 2;
+    screen.x -= screen_width / 2;
     screen.y -= 100;
 
     // So final actual commands are:
@@ -48,7 +48,7 @@ Vector2 fromIso(Vector2 screen, int screenWidth) {
     return result;
 }
 
-Vector2 toIso(Vector2 coord, int screenWidth) {
+Vector2 toIso(Vector2 coord, int screen_width) {
     Vector2 result = {};
 
     // calculate screen coordinates
@@ -57,15 +57,15 @@ Vector2 toIso(Vector2 coord, int screenWidth) {
 
     // some translation
     result.x -= TILE_WIDTH / 2;
-    result.x += screenWidth / 2;
+    result.x += screen_width / 2;
     result.y += 100;
 
     return result;
 }
 
 /* global variables start */
-int screenWidth;
-int screenHeight;
+int screen_width;
+int screen_height;
 Texture2D ground_texture;
 Texture2D mouseover_texture;
 Texture2D enemy_type_1_texture;
@@ -73,11 +73,11 @@ Texture2D enemy_type_2_texture;
 /* global variables end */
 
 void grab_user_input(GameState* game_state) {
-    game_state->mouse_position = fromIso(GetMousePosition(), screenWidth);
+    game_state->mouse_position = fromIso(GetMousePosition(), screen_width);
 }
 
 void update(GameState* game_state) {
-    float deltaTime = GetFrameTime();
+    float delta_time = GetFrameTime();
     // update enemy
     for (int e = 0; e < game_state->enemy_count; e++){
         Enemy* enemy = &game_state->enemies[e];
@@ -86,7 +86,7 @@ void update(GameState* game_state) {
         if (enemy->type == TYPE_1) {speed = 0.25;}
         else if (enemy->type == TYPE_2) {speed = 0.5;}
         
-        enemy->position.x += speed * deltaTime;
+        enemy->position.x += speed * delta_time;
     }
 }
 
@@ -94,7 +94,7 @@ void draw(GameState* game_state) {
     for (int y = 0; y < GRID_SIZE; y++){
         for (int x = 0; x < GRID_SIZE; x++){
             Vector2 grid_coords = {.x = x, .y = y};
-            Vector2 iso_coords = toIso(grid_coords, screenWidth);
+            Vector2 iso_coords = toIso(grid_coords, screen_width);
             Vector2 mouse_coords = game_state->mouse_position;
 
             if ((int) mouse_coords.x == x && (int) mouse_coords.y == y) {
@@ -108,7 +108,7 @@ void draw(GameState* game_state) {
 
     for (int e = 0; e < game_state->enemy_count; e++) {
         Enemy* enemy = &game_state->enemies[e];
-        Vector2 iso_coords = toIso(enemy->position, screenWidth);
+        Vector2 iso_coords = toIso(enemy->position, screen_width);
         Texture2D texture;
         if (enemy->type == TYPE_1) {
             texture = enemy_type_1_texture;
@@ -119,8 +119,7 @@ void draw(GameState* game_state) {
     }
 }
 
-int main(void)
-{
+int main(void){
     GameState* game_state = malloc(sizeof(GameState));
     if (game_state == NULL) {
         printf("could not allocate memory for game state");
@@ -132,11 +131,10 @@ int main(void)
     InitWindow(0, 0, "blockwave");
     SetTargetFPS(60);
 
-
     int monitor = GetCurrentMonitor();
-    screenWidth = GetMonitorWidth(monitor);
-    screenHeight = GetMonitorHeight(monitor);
-    SetWindowSize(screenWidth, GetMonitorHeight(monitor));
+    screen_width = GetMonitorWidth(monitor);
+    screen_height = GetMonitorHeight(monitor);
+    SetWindowSize(screen_width, GetMonitorHeight(monitor));
 
     Image block_1 = LoadImage("./assets/Isometric_Tiles_Pixel_Art/Blocks/blocks_1.png");
     ground_texture = LoadTextureFromImage(block_1);
