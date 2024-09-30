@@ -25,6 +25,15 @@ typedef struct GameState {
     int enemy_count;
 } GameState;
 
+/* global variables start */
+int screen_width;
+int screen_height;
+Texture2D ground_texture;
+Texture2D mouseover_texture;
+Texture2D enemy_type_1_texture;
+Texture2D enemy_type_2_texture;
+/* global variables end */
+
 void addEnemy(Vector2 position, enum EnemyType type, GameState* game_state) {
     Enemy* enemy = &game_state->enemies[game_state->enemy_count];
     enemy->position = position;
@@ -32,7 +41,7 @@ void addEnemy(Vector2 position, enum EnemyType type, GameState* game_state) {
     game_state->enemies[game_state->enemy_count++] = *enemy;
 }
 
-Vector2 fromIso(Vector2 screen, int screen_width) {
+Vector2 fromIso(Vector2 screen) {
     Vector2 result = {};
 
     screen.x -= screen_width / 2;
@@ -48,7 +57,7 @@ Vector2 fromIso(Vector2 screen, int screen_width) {
     return result;
 }
 
-Vector2 toIso(Vector2 coord, int screen_width) {
+Vector2 toIso(Vector2 coord) {
     Vector2 result = {};
 
     // calculate screen coordinates
@@ -63,17 +72,8 @@ Vector2 toIso(Vector2 coord, int screen_width) {
     return result;
 }
 
-/* global variables start */
-int screen_width;
-int screen_height;
-Texture2D ground_texture;
-Texture2D mouseover_texture;
-Texture2D enemy_type_1_texture;
-Texture2D enemy_type_2_texture;
-/* global variables end */
-
 void grab_user_input(GameState* game_state) {
-    game_state->mouse_position = fromIso(GetMousePosition(), screen_width);
+    game_state->mouse_position = fromIso(GetMousePosition());
 }
 
 void update(GameState* game_state) {
@@ -94,7 +94,7 @@ void draw(GameState* game_state) {
     for (int y = 0; y < GRID_SIZE; y++){
         for (int x = 0; x < GRID_SIZE; x++){
             Vector2 grid_coords = {.x = x, .y = y};
-            Vector2 iso_coords = toIso(grid_coords, screen_width);
+            Vector2 iso_coords = toIso(grid_coords);
             Vector2 mouse_coords = game_state->mouse_position;
 
             if ((int) mouse_coords.x == x && (int) mouse_coords.y == y) {
@@ -108,7 +108,7 @@ void draw(GameState* game_state) {
 
     for (int e = 0; e < game_state->enemy_count; e++) {
         Enemy* enemy = &game_state->enemies[e];
-        Vector2 iso_coords = toIso(enemy->position, screen_width);
+        Vector2 iso_coords = toIso(enemy->position);
         Texture2D texture;
         if (enemy->type == TYPE_1) {
             texture = enemy_type_1_texture;
