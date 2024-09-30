@@ -6,6 +6,9 @@
 #define GRID_SIZE 25
 #define IMG_SIZE 64
 
+#define TILE_WIDTH 64
+#define TILE_HEIGHT 32
+
 enum EnemyType {
     TYPE_1,
     TYPE_2
@@ -29,31 +32,33 @@ void addEnemy(Vector2 position, enum EnemyType type, GameState* game_state) {
     game_state->enemies[game_state->enemy_count++] = *enemy;
 }
 
-Vector2 fromIso(Vector2 coord, int screenWidth) {
-    float h = IMG_SIZE / 2;
-    float a = (2 * coord.y - 2 * 100) / h;
-    float b = (coord.x + h - screenWidth / 2) / h;
+Vector2 fromIso(Vector2 screen, int screenWidth) {
+    Vector2 result = {};
 
-    Vector2 result = {
-        .x = floor((a + b) / 2),
-        .y = floor((a - b) / 2)
-    };
+    screen.x -= screenWidth / 2;
+    screen.y -= 100;
+
+    // So final actual commands are:
+    result.x = (screen.x / (TILE_WIDTH / 2) + screen.y / (TILE_HEIGHT / 2)) / 2;
+    result.y = (screen.y / (TILE_HEIGHT / 2) -(screen.x / (TILE_WIDTH / 2))) / 2;
+
+    result.x = floor(result.x);
+    result.y = floor(result.y);
 
     return result;
 }
 
 Vector2 toIso(Vector2 coord, int screenWidth) {
-    float x = coord.x * 1 * IMG_SIZE / 2 + coord.y * -1 * IMG_SIZE / 2;
-    float y = coord.x * 0.5 * IMG_SIZE / 2 + coord.y * 0.5 * IMG_SIZE / 2;
+    Vector2 result = {};
 
-    x -= IMG_SIZE / 2;
-    x += screenWidth / 2;
-    y += 100;
+    // calculate screen coordinates
+    result.x = (coord.x - coord.y) * (TILE_WIDTH / 2);
+    result.y = (coord.x + coord.y) * (TILE_HEIGHT / 2);
 
-    Vector2 result = {
-        .x = x,
-        .y = y
-    };
+    // some translation
+    result.x -= TILE_WIDTH / 2;
+    result.x += screenWidth / 2;
+    result.y += 100;
 
     return result;
 }
