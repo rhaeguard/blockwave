@@ -13,11 +13,13 @@ enum GeneralObjectType {
     ENEMY_TYPE_2,
     DEFENDER_TYPE_1,
     DEFENDER_TYPE_2,
+    PROJECTILE_TYPE_1,
 };
 
 enum GameObjectType {
     ENEMY,
     DEFENSE,
+    PROJECTILE,
 };
 
 typedef struct Enemy {
@@ -25,7 +27,7 @@ typedef struct Enemy {
 } Enemy;
 
 typedef struct Defense {
-    int defense; // placeholder
+    double last_attacked;
 } Defense;
 
 typedef union GameObjectValue {
@@ -56,11 +58,11 @@ Texture2D GAME_OBJECT_TEXTURES[4];
 /* global variables end */
 
 int compareGameObjects(const void* a, const void* b) {
-    GameObject o1 = *( (GameObject*) a );
-    GameObject o2 = *( (GameObject*) b );
+    GameObject* o1 = ( (GameObject*) a );
+    GameObject* o2 = ( (GameObject*) b );
 
-    Vector2 p1 = o1.position;
-    Vector2 p2 = o2.position;
+    Vector2 p1 = o1->position;
+    Vector2 p2 = o2->position;
 
     if (p1.y < p2.y) {
         return -1;
@@ -72,6 +74,10 @@ int compareGameObjects(const void* a, const void* b) {
 }
 
 void addEnemy(Vector2 position, enum GeneralObjectType type, GameState* game_state) {
+    if (game_state->game_object_count >= 100) {
+        printf("cannot add more game objects\n");
+        return;
+    } 
     GameObject* game_object = &game_state->game_objects[game_state->game_object_count];
     game_object->type = ENEMY;
 
@@ -83,15 +89,35 @@ void addEnemy(Vector2 position, enum GeneralObjectType type, GameState* game_sta
 }
 
 void addDefense(Vector2 position, enum GeneralObjectType type, GameState* game_state) {
+    if (game_state->game_object_count >= 100) {
+        printf("cannot add more game objects\n");
+        return;
+    } 
     GameObject* game_object = &game_state->game_objects[game_state->game_object_count];
     game_object->type = DEFENSE;
 
+    game_object->game_object.defense.last_attacked = GetTime();
     game_object->position = position;
     game_object->sub_type = type;
     game_state->game_objects[game_state->game_object_count++] = *game_object;
 
     qsort(game_state->game_objects, game_state->game_object_count, sizeof(GameObject), compareGameObjects);
 }
+
+void addProjectile(float x, float y, enum GeneralObjectType type, GameState* game_state) {
+    if (game_state->game_object_count >= 100) {
+        printf("cannot add more game objects\n");
+        return;
+    } 
+    GameObject* game_object = &game_state->game_objects[game_state->game_object_count];
+    game_object->type = PROJECTILE;
+
+    Vector2 position = {.x=x, .y=y};
+    game_object->position = position;
+    game_object->sub_type = type;
+    game_state->game_objects[game_state->game_object_count++] = *game_object;
+}
+
 
 Vector2 fromIso(Vector2 screen) {
     Vector2 result = {};
@@ -139,18 +165,35 @@ void grab_user_input(GameState* game_state) {
 void update(GameState* game_state) {
     float delta_time = GetFrameTime();
     // update enemy
-    for (int e = 0; e < game_state->game_object_count; e++){
-        if (game_state->game_objects[e].type != ENEMY) {
-            continue;
+    int count = game_state -> game_object_count;
+    for (int e = 0; e < count; e++){
+        enum GameObjectType object_type = game_state->game_objects[e].type;
+
+        if (object_type == ENEMY) {
+            float speed = 0.0;
+
+            if ((&game_state->game_objects[e])->sub_type == ENEMY_TYPE_1) {speed = 0.25;}
+            else if ((&game_state->game_objects[e])->sub_type == ENEMY_TYPE_2) {speed = 0.5;}
+            
+            game_state->game_objects[e].position.x += speed * delta_time;
+        } else if (object_type == DEFENSE) {
+            // TODO: projectile generation should be based on charging a certain bar which would be higher/lower depending on the effectiveness of the projectile
+            Defense* defense = &(game_state->game_objects[e].game_object.defense);
+            double time_passed = GetTime() - defense->last_attacked;
+
+            if (time_passed < 4.0) { continue; }
+
+            Vector2 p = game_state->game_objects[e].position;
+            addProjectile(p.x-1, p.y, PROJECTILE_TYPE_1, game_state);
+            defense->last_attacked = GetTime();
+        } else if (object_type == PROJECTILE) {
+            // TODO: projectiles will move with different speeds
+            game_state->game_objects[e].position.x -= 2 * delta_time;
         }
-
-        float speed = 0.0;
-
-        if ((&game_state->game_objects[e])->sub_type == ENEMY_TYPE_1) {speed = 0.25;}
-        else if ((&game_state->game_objects[e])->sub_type == ENEMY_TYPE_2) {speed = 0.5;}
-        
-        (&game_state->game_objects[e])->position.x += speed * delta_time;
     }
+
+    // TODO: only do this if a new projectile is added
+    qsort(game_state->game_objects, game_state->game_object_count, sizeof(GameObject), compareGameObjects);
 }
 
 void draw(GameState* game_state) {
@@ -179,10 +222,6 @@ void draw(GameState* game_state) {
 
 int main(void){
     GameState* game_state = calloc(1, sizeof(GameState));
-    if (game_state == NULL) {
-        printf("could not allocate memory for game state");
-        return 3;
-    }
 
     SetConfigFlags(FLAG_VSYNC_HINT);
 
@@ -218,10 +257,16 @@ int main(void){
     Texture2D defender_type_2_texture = LoadTextureFromImage(block_31);
     UnloadImage(block_31);
 
+    Image block_12 = LoadImage("./assets/Isometric_Tiles_Pixel_Art/Blocks/blocks_12.png");
+    ImageResize(&block_12, TILE_WIDTH / 2, TILE_WIDTH / 2);
+    Texture2D projectile_1_texture = LoadTextureFromImage(block_12);
+    UnloadImage(block_12);
+
     GAME_OBJECT_TEXTURES[ENEMY_TYPE_1] = enemy_type_1_texture;
     GAME_OBJECT_TEXTURES[ENEMY_TYPE_2] = enemy_type_2_texture;
     GAME_OBJECT_TEXTURES[DEFENDER_TYPE_1] = defender_type_1_texture;
     GAME_OBJECT_TEXTURES[DEFENDER_TYPE_2] = defender_type_2_texture;
+    GAME_OBJECT_TEXTURES[PROJECTILE_TYPE_1] = projectile_1_texture;
 
     Vector2 p1 = {.x = 0, .y = 9}; addEnemy(p1, ENEMY_TYPE_1, game_state);
     Vector2 p2 = {.x = 0, .y = 13}; addEnemy(p2, ENEMY_TYPE_2, game_state);
@@ -241,14 +286,13 @@ int main(void){
 
     {
         // free
-        free(game_state);
-
         UnloadTexture(ground_texture);
         UnloadTexture(mouseover_texture);
         UnloadTexture(enemy_type_1_texture);
         UnloadTexture(enemy_type_2_texture);
         UnloadTexture(defender_type_1_texture);
         UnloadTexture(defender_type_2_texture);
+        UnloadTexture(projectile_1_texture);
     }
 
 
