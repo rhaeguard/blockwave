@@ -40,14 +40,31 @@ typedef struct GameObject {
     Vector2 position;
     enum GameObjectType type;
     enum GeneralObjectType sub_type;
+    int is_active;
 } GameObject;
+
+typedef struct GameObjects {
+    GameObject* objects;
+    int count;
+    int capacity;
+} GameObjects;
 
 typedef struct GameState {
     Vector2 mouse_position;
-    GameObject game_objects[100]; // pre-allocated array
-    int game_object_count;
+    GameObjects game_objects;
 
 } GameState;
+
+void resize(GameObjects* container) {
+    if (container->count >= container->capacity) {
+        if (container->capacity == 0) {
+            container->capacity = 256;
+        } else {
+            container->capacity *= 2;
+        }
+        container->objects = realloc(container->objects, container->capacity * sizeof(GameObject));
+    }
+}
 
 /* global variables start */
 int screen_width;
@@ -60,6 +77,9 @@ Texture2D GAME_OBJECT_TEXTURES[4];
 int compareGameObjects(const void* a, const void* b) {
     GameObject* o1 = ( (GameObject*) a );
     GameObject* o2 = ( (GameObject*) b );
+
+    if (!o1->is_active) return 1;
+    if (!o2->is_active) return -1;
 
     Vector2 p1 = o1->position;
     Vector2 p2 = o2->position;
@@ -74,50 +94,45 @@ int compareGameObjects(const void* a, const void* b) {
 }
 
 void addEnemy(Vector2 position, enum GeneralObjectType type, GameState* game_state) {
-    if (game_state->game_object_count >= 100) {
-        printf("cannot add more game objects\n");
-        return;
-    } 
-    GameObject* game_object = &game_state->game_objects[game_state->game_object_count];
+    resize(&game_state->game_objects);
+
+    GameObject* game_object = &(game_state->game_objects.objects[game_state->game_objects.count]); 
     game_object->type = ENEMY;
 
     game_object->position = position;
     game_object->sub_type = type;
-    game_state->game_objects[game_state->game_object_count++] = *game_object;
+    game_object->is_active = 1;
 
-    qsort(game_state->game_objects, game_state->game_object_count, sizeof(GameObject), compareGameObjects);
+    game_state->game_objects.objects[game_state->game_objects.count++] = *game_object;
 }
 
 void addDefense(Vector2 position, enum GeneralObjectType type, GameState* game_state) {
-    if (game_state->game_object_count >= 100) {
-        printf("cannot add more game objects\n");
-        return;
-    } 
-    GameObject* game_object = &game_state->game_objects[game_state->game_object_count];
+    resize(&game_state->game_objects);
+
+    GameObject* game_object = &(game_state->game_objects.objects[game_state->game_objects.count]); 
     game_object->type = DEFENSE;
 
     game_object->game_object.defense.last_attacked = GetTime();
     game_object->position = position;
     game_object->sub_type = type;
-    game_state->game_objects[game_state->game_object_count++] = *game_object;
-
-    qsort(game_state->game_objects, game_state->game_object_count, sizeof(GameObject), compareGameObjects);
+    game_object->is_active = 1;
+    
+    game_state->game_objects.objects[game_state->game_objects.count++] = *game_object;
 }
 
 void addProjectile(float x, float y, enum GeneralObjectType type, GameState* game_state) {
-    if (game_state->game_object_count >= 100) {
-        printf("cannot add more game objects\n");
-        return;
-    } 
-    GameObject* game_object = &game_state->game_objects[game_state->game_object_count];
+    resize(&game_state->game_objects);
+
+    GameObject* game_object = &(game_state->game_objects.objects[game_state->game_objects.count]); 
     game_object->type = PROJECTILE;
 
     Vector2 position = {.x=x, .y=y};
     game_object->position = position;
     game_object->sub_type = type;
-    game_state->game_objects[game_state->game_object_count++] = *game_object;
-}
+    game_object->is_active = 1;
 
+    game_state->game_objects.objects[game_state->game_objects.count++] = *game_object;
+}
 
 Vector2 fromIso(Vector2 screen) {
     Vector2 result = {};
@@ -165,35 +180,42 @@ void grab_user_input(GameState* game_state) {
 void update(GameState* game_state) {
     float delta_time = GetFrameTime();
     // update enemy
-    int count = game_state -> game_object_count;
+    int count = game_state -> game_objects.count;
+    int remove_count = 0;
     for (int e = 0; e < count; e++){
-        enum GameObjectType object_type = game_state->game_objects[e].type;
+        enum GameObjectType object_type = game_state->game_objects.objects[e].type;
 
         if (object_type == ENEMY) {
             float speed = 0.0;
 
-            if ((&game_state->game_objects[e])->sub_type == ENEMY_TYPE_1) {speed = 0.25;}
-            else if ((&game_state->game_objects[e])->sub_type == ENEMY_TYPE_2) {speed = 0.5;}
+            if (game_state->game_objects.objects[e].sub_type == ENEMY_TYPE_1) {speed = 0.25;}
+            else if (game_state->game_objects.objects[e].sub_type == ENEMY_TYPE_2) {speed = 0.5;}
             
-            game_state->game_objects[e].position.x += speed * delta_time;
+            game_state->game_objects.objects[e].position.x += speed * delta_time; 
         } else if (object_type == DEFENSE) {
             // TODO: projectile generation should be based on charging a certain bar which would be higher/lower depending on the effectiveness of the projectile
-            Defense* defense = &(game_state->game_objects[e].game_object.defense);
-            double time_passed = GetTime() - defense->last_attacked;
+            double last_attacked = (game_state->game_objects.objects[e].game_object.defense).last_attacked;
+            double time_passed = GetTime() - last_attacked;
 
             if (time_passed < 4.0) { continue; }
 
-            Vector2 p = game_state->game_objects[e].position;
+            Vector2 p = game_state->game_objects.objects[e].position;
             addProjectile(p.x-1, p.y, PROJECTILE_TYPE_1, game_state);
-            defense->last_attacked = GetTime();
+            game_state->game_objects.objects[e].game_object.defense.last_attacked = GetTime();
         } else if (object_type == PROJECTILE) {
             // TODO: projectiles will move with different speeds
-            game_state->game_objects[e].position.x -= 2 * delta_time;
+            game_state->game_objects.objects[e].position.x -= 2 * delta_time;
+
+            if (game_state->game_objects.objects[e].position.x < 0) {
+                game_state->game_objects.objects[e].is_active = 0;
+                remove_count++;
+            }
         }
     }
 
     // TODO: only do this if a new projectile is added
-    qsort(game_state->game_objects, game_state->game_object_count, sizeof(GameObject), compareGameObjects);
+    qsort(game_state->game_objects.objects, game_state->game_objects.count, sizeof(GameObject), compareGameObjects);
+    game_state->game_objects.count -= remove_count;
 }
 
 void draw(GameState* game_state) {
@@ -212,16 +234,18 @@ void draw(GameState* game_state) {
         }
     }
 
-    for (int e = 0; e < game_state->game_object_count; e++) {
-        Vector2 iso_coords = toIso(game_state->game_objects[e].position);
+    for (int e = 0; e < game_state->game_objects.count; e++) {
+        Vector2 iso_coords = toIso(game_state->game_objects.objects[e].position);
         iso_coords.y -= TILE_HEIGHT;
-        Texture2D texture = GAME_OBJECT_TEXTURES[game_state->game_objects[e].sub_type];
+        Texture2D texture = GAME_OBJECT_TEXTURES[game_state->game_objects.objects[e].sub_type];
         DrawTextureV(texture, iso_coords, WHITE);
     }
 }
 
 int main(void){
-    GameState* game_state = calloc(1, sizeof(GameState));
+    GameState game_state = {};
+    GameObjects objs = {0};
+    game_state.game_objects = objs;
 
     SetConfigFlags(FLAG_VSYNC_HINT);
 
@@ -268,24 +292,32 @@ int main(void){
     GAME_OBJECT_TEXTURES[DEFENDER_TYPE_2] = defender_type_2_texture;
     GAME_OBJECT_TEXTURES[PROJECTILE_TYPE_1] = projectile_1_texture;
 
-    Vector2 p1 = {.x = 0, .y = 9}; addEnemy(p1, ENEMY_TYPE_1, game_state);
-    Vector2 p2 = {.x = 0, .y = 13}; addEnemy(p2, ENEMY_TYPE_2, game_state);
+    Vector2 p1 = {.x = 0, .y = 9}; addEnemy(p1, ENEMY_TYPE_1, &game_state);
+    Vector2 p2 = {.x = 0, .y = 13}; addEnemy(p2, ENEMY_TYPE_2, &game_state);
+    Vector2 p3 = {.x = 0, .y = 18}; addEnemy(p3, ENEMY_TYPE_2, &game_state);
 
     while (!WindowShouldClose())
     {
-        grab_user_input(game_state);
-        update(game_state);
+        grab_user_input(&game_state);
+        update(&game_state);
 
         BeginDrawing();
         ClearBackground(RAYWHITE);
 
-        draw(game_state);
+        draw(&game_state);
+
+        char text[255];
+        sprintf(text, "count: %d\ncap: %d", game_state.game_objects.count, game_state.game_objects.capacity);
+
+        DrawText(text, 10, 0, 60, BLACK);
 
         EndDrawing();
     }
 
     {
         // free
+        free(game_state.game_objects.objects);
+
         UnloadTexture(ground_texture);
         UnloadTexture(mouseover_texture);
         UnloadTexture(enemy_type_1_texture);
