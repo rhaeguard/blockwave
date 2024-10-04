@@ -4,7 +4,7 @@ an isometric tower defense game
 
 progress so far
 
-[Demo Screencast](https://github.com/user-attachments/assets/78c79909-430d-4795-957d-b2accc741bde)
+[gameplay.webm](https://github.com/user-attachments/assets/db78597a-5ef1-4e4f-8d26-97c4ba0a5957)
 
 ## Todo
 

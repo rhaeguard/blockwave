@@ -71,7 +71,7 @@ int screen_width;
 int screen_height;
 Texture2D ground_texture;
 Texture2D mouseover_texture;
-Texture2D GAME_OBJECT_TEXTURES[4];
+Texture2D GAME_OBJECT_TEXTURES[10];
 /* global variables end */
 
 int compareGameObjects(const void* a, const void* b) {
@@ -225,8 +225,15 @@ void draw(GameState* game_state) {
             Vector2 iso_coords = toIso(grid_coords);
             Vector2 mouse_coords = game_state->mouse_position;
 
-            if ((int) mouse_coords.x == x && (int) mouse_coords.y == y) {
-                DrawTextureV(mouseover_texture, iso_coords, WHITE);
+            if ((int) mouse_coords.y == y) {
+                // BeginBlendMode(BLEND_ALPHA_PREMULTIPLY);
+                if ((int) mouse_coords.x == x) {
+                    DrawTextureV(mouseover_texture, iso_coords, WHITE);
+                } else {
+                    DrawTextureV(ground_texture, iso_coords, WHITE);
+                }
+                DrawTextureV(GAME_OBJECT_TEXTURES[5], iso_coords, WHITE);
+                // EndBlendMode();
             } else {
                 DrawTextureV(ground_texture, iso_coords, WHITE);
             }
@@ -286,11 +293,16 @@ int main(void){
     Texture2D projectile_1_texture = LoadTextureFromImage(block_12);
     UnloadImage(block_12);
 
+    Image white_overlay = LoadImage("./assets/Isometric_Tiles_Pixel_Art/Blocks/overlay.png");
+    Texture2D white_overlay_texture = LoadTextureFromImage(white_overlay);
+    UnloadImage(white_overlay);
+
     GAME_OBJECT_TEXTURES[ENEMY_TYPE_1] = enemy_type_1_texture;
     GAME_OBJECT_TEXTURES[ENEMY_TYPE_2] = enemy_type_2_texture;
     GAME_OBJECT_TEXTURES[DEFENDER_TYPE_1] = defender_type_1_texture;
     GAME_OBJECT_TEXTURES[DEFENDER_TYPE_2] = defender_type_2_texture;
     GAME_OBJECT_TEXTURES[PROJECTILE_TYPE_1] = projectile_1_texture;
+    GAME_OBJECT_TEXTURES[5] = white_overlay_texture;
 
     Vector2 p1 = {.x = 0, .y = 9}; addEnemy(p1, ENEMY_TYPE_1, &game_state);
     Vector2 p2 = {.x = 0, .y = 13}; addEnemy(p2, ENEMY_TYPE_2, &game_state);
@@ -325,6 +337,7 @@ int main(void){
         UnloadTexture(defender_type_1_texture);
         UnloadTexture(defender_type_2_texture);
         UnloadTexture(projectile_1_texture);
+        UnloadTexture(white_overlay_texture);
     }
 
 
