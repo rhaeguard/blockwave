@@ -307,7 +307,7 @@ int main(void){
         draw(&game_state);
 
         char text[255];
-        sprintf(text, "count: %d\ncap: %d", game_state.game_objects.count, game_state.game_objects.capacity);
+        sprintf(text, "fps: %d\ncount: %d\ncap: %d", GetFPS(), game_state.game_objects.count, game_state.game_objects.capacity);
 
         DrawText(text, 10, 0, 60, BLACK);
 
