@@ -71,6 +71,8 @@ int screen_width;
 int screen_height;
 Texture2D ground_texture;
 Texture2D mouseover_texture;
+Texture2D white_full_overlay_texture;
+Texture2D white_half_overlay_texture;
 Texture2D GAME_OBJECT_TEXTURES[10];
 /* global variables end */
 
@@ -150,6 +152,11 @@ Vector2 fromIso(Vector2 screen) {
     return result;
 }
 
+float round2Dec(float var) {
+    float value = (int)(var * 100 + .5);
+    return (float)value / 100;
+}
+
 Vector2 toIso(Vector2 coord) {
     Vector2 result = {};
 
@@ -161,6 +168,9 @@ Vector2 toIso(Vector2 coord) {
     result.x -= TILE_WIDTH / 2;
     result.x += screen_width / 2;
     result.y += 100;
+
+    result.x = round2Dec(result.x);
+    result.y = round2Dec(result.y);
 
     return result;
 }
@@ -213,7 +223,6 @@ void update(GameState* game_state) {
         }
     }
 
-    // TODO: only do this if a new projectile is added
     qsort(game_state->game_objects.objects, game_state->game_objects.count, sizeof(GameObject), compareGameObjects);
     game_state->game_objects.count -= remove_count;
 }
@@ -231,7 +240,7 @@ void draw(GameState* game_state) {
                 } else {
                     DrawTextureV(ground_texture, iso_coords, WHITE);
                 }
-                DrawTextureV(GAME_OBJECT_TEXTURES[5], iso_coords, WHITE);
+                DrawTextureV(white_full_overlay_texture, iso_coords, WHITE);
             } else {
                 DrawTextureV(ground_texture, iso_coords, WHITE);
             }
@@ -248,7 +257,7 @@ void draw(GameState* game_state) {
             float diff = GetTime() - game_state->game_objects.objects[e].game_object.defense.last_attacked;
             float pct = diff / 4.0;
             BeginScissorMode((int) iso_coords.x, (int) ceil(iso_coords.y + 2 * TILE_HEIGHT * (1 - pct)), TILE_WIDTH, 2 * TILE_HEIGHT * pct);
-                DrawTextureV(GAME_OBJECT_TEXTURES[5], iso_coords, WHITE);
+                DrawTextureV(white_half_overlay_texture, iso_coords, WHITE);
             EndScissorMode();
         }
     }
@@ -278,37 +287,40 @@ int main(void){
     mouseover_texture = LoadTextureFromImage(block_99);
     UnloadImage(block_99);
 
-    Image block_34 = LoadImage("./assets/Isometric_Tiles_Pixel_Art/Blocks/blocks_34.png");
-    Texture2D enemy_type_1_texture = LoadTextureFromImage(block_34);
-    UnloadImage(block_34);
-
-    Image block_14 = LoadImage("./assets/Isometric_Tiles_Pixel_Art/Blocks/blocks_14.png");
-    Texture2D enemy_type_2_texture = LoadTextureFromImage(block_14);
-    UnloadImage(block_14);
-
     Image block_30 = LoadImage("./assets/Isometric_Tiles_Pixel_Art/Blocks/blocks_30.png");
-    Texture2D defender_type_1_texture = LoadTextureFromImage(block_30);
+    Texture2D enemy_type_1_texture = LoadTextureFromImage(block_30);
     UnloadImage(block_30);
 
     Image block_31 = LoadImage("./assets/Isometric_Tiles_Pixel_Art/Blocks/blocks_31.png");
-    Texture2D defender_type_2_texture = LoadTextureFromImage(block_31);
+    Texture2D enemy_type_2_texture = LoadTextureFromImage(block_31);
     UnloadImage(block_31);
+
+    Image block_24 = LoadImage("./assets/Isometric_Tiles_Pixel_Art/Blocks/blocks_24.png");
+    Texture2D defender_type_1_texture = LoadTextureFromImage(block_24);
+    UnloadImage(block_24);
+
+    Image block_58 = LoadImage("./assets/Isometric_Tiles_Pixel_Art/Blocks/blocks_58.png");
+    Texture2D defender_type_2_texture = LoadTextureFromImage(block_58);
+    UnloadImage(block_58);
 
     Image block_12 = LoadImage("./assets/Isometric_Tiles_Pixel_Art/Blocks/blocks_12.png");
     ImageResize(&block_12, TILE_WIDTH / 2, TILE_WIDTH / 2);
     Texture2D projectile_1_texture = LoadTextureFromImage(block_12);
     UnloadImage(block_12);
 
-    Image white_overlay = LoadImage("./assets/Isometric_Tiles_Pixel_Art/Blocks/overlay.png");
-    Texture2D white_overlay_texture = LoadTextureFromImage(white_overlay);
-    UnloadImage(white_overlay);
+    Image white_full_overlay = LoadImage("./assets/Isometric_Tiles_Pixel_Art/Blocks/overlay.png");
+    white_full_overlay_texture = LoadTextureFromImage(white_full_overlay);
+    UnloadImage(white_full_overlay);
+
+    Image white_half_overlay = LoadImage("./assets/Isometric_Tiles_Pixel_Art/Blocks/half_overlay.png");
+    white_half_overlay_texture = LoadTextureFromImage(white_half_overlay);
+    UnloadImage(white_half_overlay);
 
     GAME_OBJECT_TEXTURES[ENEMY_TYPE_1] = enemy_type_1_texture;
     GAME_OBJECT_TEXTURES[ENEMY_TYPE_2] = enemy_type_2_texture;
     GAME_OBJECT_TEXTURES[DEFENDER_TYPE_1] = defender_type_1_texture;
     GAME_OBJECT_TEXTURES[DEFENDER_TYPE_2] = defender_type_2_texture;
     GAME_OBJECT_TEXTURES[PROJECTILE_TYPE_1] = projectile_1_texture;
-    GAME_OBJECT_TEXTURES[5] = white_overlay_texture;
 
     Vector2 p1 = {.x = 0, .y = 9}; addEnemy(p1, ENEMY_TYPE_1, &game_state);
     Vector2 p2 = {.x = 0, .y = 13}; addEnemy(p2, ENEMY_TYPE_2, &game_state);
@@ -338,12 +350,14 @@ int main(void){
 
         UnloadTexture(ground_texture);
         UnloadTexture(mouseover_texture);
+        UnloadTexture(white_full_overlay_texture);
+        UnloadTexture(white_half_overlay_texture);
+        
         UnloadTexture(enemy_type_1_texture);
         UnloadTexture(enemy_type_2_texture);
         UnloadTexture(defender_type_1_texture);
         UnloadTexture(defender_type_2_texture);
         UnloadTexture(projectile_1_texture);
-        UnloadTexture(white_overlay_texture);
     }
 
 

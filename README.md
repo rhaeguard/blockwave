@@ -16,6 +16,7 @@ progress so far
 - [ ] Customize the sprites (using existing block sprites for now)
 - [ ] Enemy waves
 - [ ] Publish on itch.io?
+- [ ] Terrain as a defense: use sand/mud/water to slow down the wave
 
 ## Assets
 
