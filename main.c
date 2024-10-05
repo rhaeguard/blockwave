@@ -255,7 +255,8 @@ int main(void){
     game_state.game_objects = objs;
 
     SetConfigFlags(FLAG_VSYNC_HINT);
-
+    SetConfigFlags(FLAG_WINDOW_RESIZABLE);
+    
     InitWindow(0, 0, "blockwave");
     SetTargetFPS(60);
 
