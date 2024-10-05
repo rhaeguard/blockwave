@@ -188,8 +188,8 @@ void update(GameState* game_state) {
         if (object_type == ENEMY) {
             float speed = 0.0;
 
-            if (game_state->game_objects.objects[e].sub_type == ENEMY_TYPE_1) {speed = 0.25;}
-            else if (game_state->game_objects.objects[e].sub_type == ENEMY_TYPE_2) {speed = 0.5;}
+            if (game_state->game_objects.objects[e].sub_type == ENEMY_TYPE_1) {speed = 0.125;}
+            else if (game_state->game_objects.objects[e].sub_type == ENEMY_TYPE_2) {speed = 0.25;}
             
             game_state->game_objects.objects[e].position.x += speed * delta_time; 
         } else if (object_type == DEFENSE) {
@@ -226,14 +226,12 @@ void draw(GameState* game_state) {
             Vector2 mouse_coords = game_state->mouse_position;
 
             if ((int) mouse_coords.y == y) {
-                // BeginBlendMode(BLEND_ALPHA_PREMULTIPLY);
                 if ((int) mouse_coords.x == x) {
                     DrawTextureV(mouseover_texture, iso_coords, WHITE);
                 } else {
                     DrawTextureV(ground_texture, iso_coords, WHITE);
                 }
                 DrawTextureV(GAME_OBJECT_TEXTURES[5], iso_coords, WHITE);
-                // EndBlendMode();
             } else {
                 DrawTextureV(ground_texture, iso_coords, WHITE);
             }
@@ -246,6 +244,13 @@ void draw(GameState* game_state) {
         iso_coords.y -= TILE_HEIGHT;
         Texture2D texture = GAME_OBJECT_TEXTURES[game_state->game_objects.objects[e].sub_type];
         DrawTextureV(texture, iso_coords, WHITE);
+        if (game_state->game_objects.objects[e].type == DEFENSE) {
+            float diff = GetTime() - game_state->game_objects.objects[e].game_object.defense.last_attacked;
+            float pct = diff / 4.0;
+            BeginScissorMode((int) iso_coords.x, (int) ceil(iso_coords.y + 2 * TILE_HEIGHT * (1 - pct)), TILE_WIDTH, 2 * TILE_HEIGHT * pct);
+                DrawTextureV(GAME_OBJECT_TEXTURES[5], iso_coords, WHITE);
+            EndScissorMode();
+        }
     }
 }
 

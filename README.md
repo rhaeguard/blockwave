@@ -15,6 +15,7 @@ progress so far
 - [ ] Limited inventory
 - [ ] Customize the sprites (using existing block sprites for now)
 - [ ] Enemy waves
+- [ ] Publish on itch.io?
 
 ## Assets
 
