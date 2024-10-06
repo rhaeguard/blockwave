@@ -2,6 +2,7 @@
 #include <math.h>
 #include <stdlib.h>
 #include "raylib.h"
+#include "raymath.h"
 
 #define GRID_SIZE 25
 
@@ -23,7 +24,9 @@ enum GameObjectType {
 };
 
 typedef struct Enemy {
-    int enemy; // placeholder
+    Vector2 start;
+    Vector2 target;
+    float move_pct; // progress till dest
 } Enemy;
 
 typedef struct Defense {
@@ -76,6 +79,50 @@ Texture2D white_half_overlay_texture;
 Texture2D GAME_OBJECT_TEXTURES[10];
 /* global variables end */
 
+Vector2 toIso(Vector2 coord) {
+    Vector2 result = {};
+
+    // calculate screen coordinates
+    result.x = (coord.x - coord.y) * (TILE_WIDTH / 2);
+    result.y = (coord.x + coord.y) * (TILE_HEIGHT / 2);
+
+    // some translation
+    result.x -= TILE_WIDTH / 2;
+    result.x += screen_width / 2;
+    result.y += 100;
+
+    return result;
+}
+
+Vector2 toIsoForMovement(Vector2 coord) {
+    Vector2 result = {};
+
+    // calculate screen coordinates
+    result.x = (coord.x - coord.y) * (TILE_WIDTH / 2);
+    result.y = (coord.x + coord.y) * (TILE_HEIGHT / 2);
+
+    // some translation
+    result.x += screen_width / 2;
+    result.y += 100;
+
+    return result;
+}
+
+Vector2 fromIso(Vector2 screen) {
+    Vector2 result = {};
+
+    screen.x -= screen_width / 2;
+    screen.y -= 100.0;
+
+    result.x = (screen.x / (TILE_WIDTH / 2) + screen.y / (TILE_HEIGHT / 2)) / 2;
+    result.y = (screen.y / (TILE_HEIGHT / 2) -(screen.x / (TILE_WIDTH / 2))) / 2;
+
+    result.x = floorf(result.x);
+    result.y = floorf(result.y);
+
+    return result;
+}
+
 int compareGameObjects(const void* a, const void* b) {
     GameObject* o1 = ( (GameObject*) a );
     GameObject* o2 = ( (GameObject*) b );
@@ -101,11 +148,31 @@ void addEnemy(Vector2 position, enum GeneralObjectType type, GameState* game_sta
     GameObject* game_object = &(game_state->game_objects.objects[game_state->game_objects.count]); 
     game_object->type = ENEMY;
 
+    Vector2 target = {
+        .x = GRID_SIZE - 1,
+        .y = position.y
+    };
+
+    target = toIsoForMovement(target);
+    Vector2 start = {
+        .x = 0,
+        .y = position.y
+    };
+    start = toIsoForMovement(position);
+
+    game_object->game_object.enemy.start = start;
+    game_object->game_object.enemy.target = target;
+    game_object->game_object.enemy.move_pct = 0.0;
     game_object->position = position;
     game_object->sub_type = type;
     game_object->is_active = 1;
 
     game_state->game_objects.objects[game_state->game_objects.count++] = *game_object;
+
+    printf("start:\t(%.2f, %.2f)\n", start.x, start.y);
+    Vector2 sg = fromIso(start);
+    printf("startg:\t(%.2f, %.2f)\n", sg.x, sg.y);
+    printf("target:\t(%.2f, %.2f)\n", target.x, target.y);
 }
 
 void addDefense(Vector2 position, enum GeneralObjectType type, GameState* game_state) {
@@ -136,43 +203,9 @@ void addProjectile(float x, float y, enum GeneralObjectType type, GameState* gam
     game_state->game_objects.objects[game_state->game_objects.count++] = *game_object;
 }
 
-Vector2 fromIso(Vector2 screen) {
-    Vector2 result = {};
-
-    screen.x -= screen_width / 2;
-    screen.y -= 100;
-
-    // So final actual commands are:
-    result.x = (screen.x / (TILE_WIDTH / 2) + screen.y / (TILE_HEIGHT / 2)) / 2;
-    result.y = (screen.y / (TILE_HEIGHT / 2) -(screen.x / (TILE_WIDTH / 2))) / 2;
-
-    result.x = floor(result.x);
-    result.y = floor(result.y);
-
-    return result;
-}
-
 float round2Dec(float var) {
     float value = (int)(var * 100 + .5);
     return (float)value / 100;
-}
-
-Vector2 toIso(Vector2 coord) {
-    Vector2 result = {};
-
-    // calculate screen coordinates
-    result.x = (coord.x - coord.y) * (TILE_WIDTH / 2);
-    result.y = (coord.x + coord.y) * (TILE_HEIGHT / 2);
-
-    // some translation
-    result.x -= TILE_WIDTH / 2;
-    result.x += screen_width / 2;
-    result.y += 100;
-
-    result.x = round2Dec(result.x);
-    result.y = round2Dec(result.y);
-
-    return result;
 }
 
 void grab_user_input(GameState* game_state) {
@@ -198,10 +231,15 @@ void update(GameState* game_state) {
         if (object_type == ENEMY) {
             float speed = 0.0;
 
-            if (game_state->game_objects.objects[e].sub_type == ENEMY_TYPE_1) {speed = 0.125;}
+            if (game_state->game_objects.objects[e].sub_type == ENEMY_TYPE_1) {speed = 0.15;}
             else if (game_state->game_objects.objects[e].sub_type == ENEMY_TYPE_2) {speed = 0.25;}
+
+            game_state->game_objects.objects[e].game_object.enemy.move_pct += 50 * (delta_time / 1000);
+            game_state->game_objects.objects[e].game_object.enemy.move_pct = Clamp(game_state->game_objects.objects[e].game_object.enemy.move_pct, 0, 1);
             
-            game_state->game_objects.objects[e].position.x += speed * delta_time; 
+            // game_state->game_objects.objects[e].position.x += speed * delta_time; 
+            // game_state->game_objects.objects[e].position.y += 0.075; 
+            // game_state->game_objects.objects[e].position.x += 0.0075; 
         } else if (object_type == DEFENSE) {
             // TODO: projectile generation should be based on charging a certain bar which would be higher/lower depending on the effectiveness of the projectile
             double last_attacked = (game_state->game_objects.objects[e].game_object.defense).last_attacked;
@@ -252,13 +290,44 @@ void draw(GameState* game_state) {
         Vector2 iso_coords = toIso(game_state->game_objects.objects[e].position);
         iso_coords.y -= TILE_HEIGHT;
         Texture2D texture = GAME_OBJECT_TEXTURES[game_state->game_objects.objects[e].sub_type];
-        DrawTextureV(texture, iso_coords, WHITE);
         if (game_state->game_objects.objects[e].type == DEFENSE) {
+            DrawTextureV(texture, iso_coords, WHITE);
             float diff = GetTime() - game_state->game_objects.objects[e].game_object.defense.last_attacked;
             float pct = diff / 4.0;
             BeginScissorMode((int) iso_coords.x, (int) ceil(iso_coords.y + 2 * TILE_HEIGHT * (1 - pct)), TILE_WIDTH, 2 * TILE_HEIGHT * pct);
                 DrawTextureV(white_half_overlay_texture, iso_coords, WHITE);
             EndScissorMode();
+        } else {
+            iso_coords = Vector2Lerp(
+                game_state->game_objects.objects[e].game_object.enemy.start,
+                game_state->game_objects.objects[e].game_object.enemy.target,
+                game_state->game_objects.objects[e].game_object.enemy.move_pct
+            );
+            iso_coords.x -= TILE_WIDTH / 2;
+            iso_coords.y -= TILE_HEIGHT;
+            
+            DrawTextureV(texture, iso_coords, WHITE);
+
+            // Rectangle r = {iso_coords.x, iso_coords.y, TILE_WIDTH, TILE_WIDTH};
+            // DrawCircleV(iso_coords, 5, RED);
+            // DrawRectangleLinesEx(r, 1.0, BLUE);
+
+            // iso_coords = game_state->game_objects.objects[e].game_object.enemy.start;
+            // iso_coords.y -= TILE_HEIGHT;
+            // iso_coords.x -= TILE_WIDTH / 2;
+            // Rectangle rr = {iso_coords.x, iso_coords.y, TILE_WIDTH, TILE_WIDTH};
+            // DrawCircleV(iso_coords, 5, RED);
+            // DrawRectangleLinesEx(rr, 1.0, BLUE);
+            
+            // Vector2 dst_coords = game_state->game_objects.objects[e].game_object.enemy.target;
+            // dst_coords.y -= TILE_HEIGHT;
+            // dst_coords.x -= TILE_WIDTH / 2;
+
+            // Rectangle d = {dst_coords.x, dst_coords.y, TILE_WIDTH, TILE_WIDTH};
+            // DrawCircleV(dst_coords, 5, RED);
+            // DrawRectangleLinesEx(d, 1.0, BLUE);
+
+            // DrawLineEx(iso_coords, dst_coords, 3, BLUE);
         }
     }
 }
@@ -323,8 +392,8 @@ int main(void){
     GAME_OBJECT_TEXTURES[PROJECTILE_TYPE_1] = projectile_1_texture;
 
     Vector2 p1 = {.x = 0, .y = 9}; addEnemy(p1, ENEMY_TYPE_1, &game_state);
-    Vector2 p2 = {.x = 0, .y = 13}; addEnemy(p2, ENEMY_TYPE_2, &game_state);
-    Vector2 p3 = {.x = 0, .y = 18}; addEnemy(p3, ENEMY_TYPE_2, &game_state);
+    // Vector2 p2 = {.x = 0, .y = 13}; addEnemy(p2, ENEMY_TYPE_2, &game_state);
+    // Vector2 p3 = {.x = 0, .y = 18}; addEnemy(p3, ENEMY_TYPE_2, &game_state);
 
     while (!WindowShouldClose())
     {
@@ -337,7 +406,15 @@ int main(void){
         draw(&game_state);
 
         char text[255];
-        sprintf(text, "fps: %d\ncount: %d\ncap: %d", GetFPS(), game_state.game_objects.count, game_state.game_objects.capacity);
+        Vector2 v = Vector2Lerp(
+            game_state.game_objects.objects[0].game_object.enemy.start,
+            game_state.game_objects.objects[0].game_object.enemy.target,
+            game_state.game_objects.objects[0].game_object.enemy.move_pct
+        );
+        v = fromIso(v);
+        float x = v.x;
+        float y = v.y;
+        sprintf(text, "fps: %d\ncount: %d\ncap: %d\n%f\n%f", GetFPS(), game_state.game_objects.count, game_state.game_objects.capacity, x, y);
 
         DrawText(text, 10, 0, 60, BLACK);
 
