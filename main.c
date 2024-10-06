@@ -8,6 +8,7 @@
 
 #define TILE_WIDTH 64
 #define TILE_HEIGHT 32
+#define VERTICAL_OFFSET 100.0
 
 enum GeneralObjectType {
     ENEMY_TYPE_1,
@@ -85,35 +86,31 @@ Texture2D GAME_OBJECT_TEXTURES[10];
 /* global variables end */
 
 Vector2 toIso(Vector2 coord, bool translate_by_half_width) {
-    Vector2 result = {};
-
     // calculate screen coordinates
-    result.x = (coord.x - coord.y) * (TILE_WIDTH / 2);
-    result.y = (coord.x + coord.y) * (TILE_HEIGHT / 2);
+    float x = (coord.x - coord.y) * (TILE_WIDTH / 2);
+    float y = (coord.x + coord.y) * (TILE_HEIGHT / 2);
 
     // some translation
-    result.x -= (TILE_WIDTH / 2) * translate_by_half_width;
-    result.x += screen_width / 2;
-    result.y += 100;
+    x -= (TILE_WIDTH / 2) * translate_by_half_width;
+    x += screen_width / 2;
+    y += VERTICAL_OFFSET;
 
-    return result;
+    return vec2(x, y);
 }
 
 Vector2 fromIso(Vector2 screen, bool snap_to_grid) {
-    Vector2 result = {};
-
     screen.x -= screen_width / 2;
-    screen.y -= 100.0;
+    screen.y -= VERTICAL_OFFSET;
 
-    result.x = (screen.x / (TILE_WIDTH / 2) + screen.y / (TILE_HEIGHT / 2)) / 2;
-    result.y = (screen.y / (TILE_HEIGHT / 2) -(screen.x / (TILE_WIDTH / 2))) / 2;
+    float x = (screen.x / (TILE_WIDTH / 2) + screen.y / (TILE_HEIGHT / 2)) / 2;
+    float y = (screen.y / (TILE_HEIGHT / 2) -(screen.x / (TILE_WIDTH / 2))) / 2;
 
     if (snap_to_grid) {
-        result.x = floorf(result.x);
-        result.y = floorf(result.y);
+        x = floorf(x);
+        y = floorf(y);
     }
 
-    return result;
+    return vec2(x, y);
 }
 
 int compareGameObjects(const void* a, const void* b) {
@@ -173,17 +170,11 @@ void addProjectile(float x, float y, enum GeneralObjectType type, GameState* gam
     GameObject* game_object = &(game_state->game_objects.objects[game_state->game_objects.count]); 
     game_object->type = PROJECTILE;
 
-    Vector2 position = {.x=x, .y=y};
-    game_object->position = position;
+    game_object->position = vec2(x, y);
     game_object->sub_type = type;
     game_object->is_active = 1;
 
     game_state->game_objects.objects[game_state->game_objects.count++] = *game_object;
-}
-
-float round2Dec(float var) {
-    float value = (int)(var * 100 + .5);
-    return (float)value / 100;
 }
 
 void grab_user_input(GameState* game_state) {
@@ -251,7 +242,7 @@ void update(GameState* game_state) {
 void draw(GameState* game_state) {
     for (int y = 0; y < GRID_SIZE; y++){
         for (int x = 0; x < GRID_SIZE; x++){
-            Vector2 grid_coords = {.x = x, .y = y};
+            Vector2 grid_coords = vec2(x, y);
             Vector2 iso_coords = toIso(grid_coords, true);
             Vector2 mouse_coords = game_state->mouse_position;
 
@@ -356,9 +347,9 @@ int main(void){
     GAME_OBJECT_TEXTURES[DEFENDER_TYPE_2] = defender_type_2_texture;
     GAME_OBJECT_TEXTURES[PROJECTILE_TYPE_1] = projectile_1_texture;
 
-    Vector2 p1 = {.x = 0, .y = 9}; addEnemy(p1, ENEMY_TYPE_1, &game_state);
-    Vector2 p2 = {.x = 0, .y = 13}; addEnemy(p2, ENEMY_TYPE_2, &game_state);
-    Vector2 p3 = {.x = 0, .y = 18}; addEnemy(p3, ENEMY_TYPE_2, &game_state);
+    addEnemy(vec2(0, 9), ENEMY_TYPE_1, &game_state);
+    addEnemy(vec2(0, 13), ENEMY_TYPE_2, &game_state);
+    addEnemy(vec2(0, 18), ENEMY_TYPE_2, &game_state);
 
     while (!WindowShouldClose())
     {
