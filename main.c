@@ -177,7 +177,27 @@ void addProjectile(float x, float y, enum GeneralObjectType type, GameState* gam
     game_state->game_objects.objects[game_state->game_objects.count++] = *game_object;
 }
 
-void grab_user_input(GameState* game_state) {
+bool checkProjectileCollision(GameObject* projectile, GameState* game_state) {
+    Vector2 pp = projectile->position;
+
+    for (int i=0; i < game_state->game_objects.count; i++) {
+        GameObject obj = game_state->game_objects.objects[i];
+        if (obj.position.y != pp.y) { continue; }
+
+        if (obj.type == ENEMY) {
+            Vector2 ep = obj.position;
+            bool collison_detected = (ep.x + 1) > pp.x;
+            if (collison_detected) {
+                printf("hit (%.2f, %.2f)\n", ep.x, ep.y);
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+void grabUserInput(GameState* game_state) {
     game_state->mouse_position = fromIso(GetMousePosition(), true);
 
     if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT)) {
@@ -228,10 +248,13 @@ void update(GameState* game_state) {
             // TODO: projectiles will move with different speeds
             game_state->game_objects.objects[e].position.x -= 2 * delta_time;
 
-            if (game_state->game_objects.objects[e].position.x < 0) {
+            bool collided = checkProjectileCollision(&game_state->game_objects.objects[e], game_state);
+            
+            if (game_state->game_objects.objects[e].position.x < 0 || collided) {
                 game_state->game_objects.objects[e].is_active = 0;
                 remove_count++;
             }
+
         }
     }
 
@@ -240,6 +263,7 @@ void update(GameState* game_state) {
 }
 
 void draw(GameState* game_state) {
+    // draw the grid
     for (int y = 0; y < GRID_SIZE; y++){
         for (int x = 0; x < GRID_SIZE; x++){
             Vector2 grid_coords = vec2(x, y);
@@ -260,6 +284,7 @@ void draw(GameState* game_state) {
         }
     }
 
+    // draw the chars and objects
     for (int e = 0; e < game_state->game_objects.count; e++) {
         GameObject object = game_state->game_objects.objects[e];
         Texture2D texture = GAME_OBJECT_TEXTURES[object.sub_type];
@@ -283,7 +308,7 @@ void draw(GameState* game_state) {
         } else if (object.type == PROJECTILE) {
             Vector2 iso_coords = toIso(object.position, true);
             iso_coords.y -= TILE_HEIGHT;
-            DrawTextureV(texture, iso_coords, WHITE);
+            DrawTextureV(texture, vec2(iso_coords.x + TILE_WIDTH/4, iso_coords.y + TILE_WIDTH/4), WHITE);
         }
     }
 }
@@ -353,7 +378,7 @@ int main(void){
 
     while (!WindowShouldClose())
     {
-        grab_user_input(&game_state);
+        grabUserInput(&game_state);
         update(&game_state);
 
         BeginDrawing();
