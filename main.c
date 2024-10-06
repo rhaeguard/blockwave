@@ -29,10 +29,12 @@ typedef struct Enemy {
     Vector2 target;
     Vector2 current_iso_coord;
     float move_pct; // progress till dest
+    float life;
 } Enemy;
 
 typedef struct Defense {
     double last_attacked;
+    float life;
 } Defense;
 
 typedef union GameObjectValue {
@@ -142,6 +144,7 @@ void addEnemy(Vector2 position, enum GeneralObjectType type, GameState* game_sta
     game_object->game_object.enemy.start = toIso(vec2(0, position.y), false);
     game_object->game_object.enemy.target = toIso(vec2(GRID_SIZE-1, position.y), false);
     game_object->game_object.enemy.move_pct = 0.0;
+    game_object->game_object.enemy.life = 100; // will be different by the enemy type
 
     game_object->position = position;
     game_object->sub_type = type;
@@ -177,7 +180,7 @@ void addProjectile(float x, float y, enum GeneralObjectType type, GameState* gam
     game_state->game_objects.objects[game_state->game_objects.count++] = *game_object;
 }
 
-bool checkProjectileCollision(GameObject* projectile, GameState* game_state) {
+int checkProjectileCollision(GameObject* projectile, GameState* game_state) {
     Vector2 pp = projectile->position;
 
     for (int i=0; i < game_state->game_objects.count; i++) {
@@ -188,13 +191,12 @@ bool checkProjectileCollision(GameObject* projectile, GameState* game_state) {
             Vector2 ep = obj.position;
             bool collison_detected = (ep.x + 1) > pp.x;
             if (collison_detected) {
-                printf("hit (%.2f, %.2f)\n", ep.x, ep.y);
-                return true;
+                return i;
             }
         }
     }
 
-    return false;
+    return -1;
 }
 
 void grabUserInput(GameState* game_state) {
@@ -219,6 +221,13 @@ void update(GameState* game_state) {
 
         if (object_type == ENEMY) {
             GameObject* enemy = &game_state->game_objects.objects[e];
+
+            if (enemy->game_object.enemy.life <= 0) {
+                enemy->is_active = 0;
+                remove_count++;
+                continue;
+            } 
+
             int speed = 0;
 
             if (enemy->sub_type == ENEMY_TYPE_1) {speed = 25;}
@@ -248,11 +257,14 @@ void update(GameState* game_state) {
             // TODO: projectiles will move with different speeds
             game_state->game_objects.objects[e].position.x -= 2 * delta_time;
 
-            bool collided = checkProjectileCollision(&game_state->game_objects.objects[e], game_state);
+            int collided_object_pos = checkProjectileCollision(&game_state->game_objects.objects[e], game_state);
             
-            if (game_state->game_objects.objects[e].position.x < 0 || collided) {
+            if (game_state->game_objects.objects[e].position.x < 0 || collided_object_pos != -1) {
                 game_state->game_objects.objects[e].is_active = 0;
                 remove_count++;
+
+                GameObject* enemy = &game_state->game_objects.objects[collided_object_pos];
+                enemy->game_object.enemy.life -= 40;
             }
 
         }
