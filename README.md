@@ -4,19 +4,23 @@ an isometric tower defense game
 
 progress so far
 
-[gameplay.webm](https://github.com/user-attachments/assets/054d40fc-e290-41e7-bb6d-8bf317478ebc)
+[gameplay.webm](https://github.com/user-attachments/assets/a0eef6f4-ffc6-45ff-b959-5175ed495141)
 
 ## Todo
 
 - [ ] Ability to play a very simple game from start to finish. Nothing fancy, just a limited number of enemies coming at you and you defending. 
 - [ ] Defenders shooting at the enemy
 - [ ] Have different type of game objects (different defenders, different enemies, boxes with various capabilities)
-- [ ] Ability to pick the things we want to insert in the world
-- [ ] Limited inventory
+    - [ ] cannons, guns
+    - [ ] land mines
+    - [ ] ammunition producers
+    - [ ] Terrain as a defense: use sand/mud/water to slow down the wave
+    - [ ] enemies with side stepping capabilities
+- [ ] Ability to pick the things we want to insert in the world (requires a proper hud)
+    - [ ] Limited inventory
 - [ ] Customize the sprites (using existing block sprites for now)
 - [ ] Enemy waves
-- [ ] Publish on itch.io?
-- [ ] Terrain as a defense: use sand/mud/water to slow down the wave
+- [ ] Publish on itch.io? (using web assembly)
 
 ## Assets
 
