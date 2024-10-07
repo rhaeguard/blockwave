@@ -208,7 +208,9 @@ void grabUserInput(GameState* game_state) {
         int mpx = game_state->mouse_position.x;
         int mpy = game_state->mouse_position.y;
         if (mpx >= 0 && mpx < GRID_SIZE && mpy >= 0 && mpy < GRID_SIZE) {
-            addDefense(game_state->mouse_position, DEFENDER_TYPE_1, game_state);
+            if (mpx > 5 && mpx < GRID_SIZE - 2) {
+                addDefense(game_state->mouse_position, DEFENDER_TYPE_1, game_state);
+            }
         }
     }
 }
@@ -293,7 +295,7 @@ void draw(GameState* game_state) {
             }
 
             if ((int) mouse_coords.y == y) {
-                if ((int) mouse_coords.x == x) {
+                if ((int) mouse_coords.x == x && (x > 5 && x < GRID_SIZE - 2)) {
                     DrawTextureV(mouseover_texture, iso_coords, WHITE);
                 } else {
                     DrawTextureV(*ground_texture, iso_coords, WHITE);
