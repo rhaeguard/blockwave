@@ -80,7 +80,9 @@ void resize(GameObjects* container) {
 /* global variables start */
 int screen_width;
 int screen_height;
-Texture2D ground_texture;
+Texture2D ground_grass_texture;
+Texture2D ground_pavement_texture;
+Texture2D ground_sand_texture;
 Texture2D mouseover_texture;
 Texture2D white_full_overlay_texture;
 Texture2D white_half_overlay_texture;
@@ -282,15 +284,23 @@ void draw(GameState* game_state) {
             Vector2 iso_coords = toIso(grid_coords, true);
             Vector2 mouse_coords = game_state->mouse_position;
 
+            Texture2D* ground_texture = &ground_grass_texture;
+
+            if (x >= GRID_SIZE - 2) {
+                ground_texture = &ground_pavement_texture;
+            } else if (x <= 5) {
+                ground_texture = &ground_sand_texture;
+            }
+
             if ((int) mouse_coords.y == y) {
                 if ((int) mouse_coords.x == x) {
                     DrawTextureV(mouseover_texture, iso_coords, WHITE);
                 } else {
-                    DrawTextureV(ground_texture, iso_coords, WHITE);
+                    DrawTextureV(*ground_texture, iso_coords, WHITE);
                 }
                 DrawTextureV(white_full_overlay_texture, iso_coords, WHITE);
             } else {
-                DrawTextureV(ground_texture, iso_coords, WHITE);
+                DrawTextureV(*ground_texture, iso_coords, WHITE);
             }
 
         }
@@ -325,6 +335,15 @@ void draw(GameState* game_state) {
     }
 }
 
+Texture2D loadTextureFromImage(char* filename) {
+    char path[256];
+    sprintf(path, "./assets/Isometric_Tiles_Pixel_Art/%s", filename);
+    Image image = LoadImage(path);
+    Texture2D texture = LoadTextureFromImage(image);
+    UnloadImage(image);
+    return texture;
+}
+
 int main(void){
     GameState game_state = {};
     GameObjects objs = {0};
@@ -341,42 +360,23 @@ int main(void){
     screen_height = GetMonitorHeight(monitor);
     SetWindowSize(screen_width, GetMonitorHeight(monitor));
 
-    Image block_1 = LoadImage("./assets/Isometric_Tiles_Pixel_Art/Blocks/blocks_1.png");
-    ground_texture = LoadTextureFromImage(block_1);
-    UnloadImage(block_1);
+    ground_grass_texture = loadTextureFromImage("Blocks/blocks_1.png");
+    ground_pavement_texture = loadTextureFromImage("Blocks/blocks_56.png");
+    ground_sand_texture = loadTextureFromImage("Blocks/blocks_32.png");
+    mouseover_texture = loadTextureFromImage("Blocks/blocks_99.png");
+    white_full_overlay_texture = loadTextureFromImage("Blocks/overlay.png");
+    white_half_overlay_texture = loadTextureFromImage("Blocks/half_overlay.png");
 
-    Image block_99 = LoadImage("./assets/Isometric_Tiles_Pixel_Art/Blocks/blocks_99.png");
-    mouseover_texture = LoadTextureFromImage(block_99);
-    UnloadImage(block_99);
+    Texture2D enemy_type_1_texture = loadTextureFromImage("Blocks/blocks_30.png");
+    Texture2D enemy_type_2_texture = loadTextureFromImage("Blocks/blocks_31.png");
+    Texture2D defender_type_1_texture = loadTextureFromImage("Blocks/blocks_24.png");
+    Texture2D defender_type_2_texture = loadTextureFromImage("Blocks/blocks_58.png");
 
-    Image block_30 = LoadImage("./assets/Isometric_Tiles_Pixel_Art/Blocks/blocks_30.png");
-    Texture2D enemy_type_1_texture = LoadTextureFromImage(block_30);
-    UnloadImage(block_30);
-
-    Image block_31 = LoadImage("./assets/Isometric_Tiles_Pixel_Art/Blocks/blocks_31.png");
-    Texture2D enemy_type_2_texture = LoadTextureFromImage(block_31);
-    UnloadImage(block_31);
-
-    Image block_24 = LoadImage("./assets/Isometric_Tiles_Pixel_Art/Blocks/blocks_24.png");
-    Texture2D defender_type_1_texture = LoadTextureFromImage(block_24);
-    UnloadImage(block_24);
-
-    Image block_58 = LoadImage("./assets/Isometric_Tiles_Pixel_Art/Blocks/blocks_58.png");
-    Texture2D defender_type_2_texture = LoadTextureFromImage(block_58);
-    UnloadImage(block_58);
-
+    // load the long way, because it needs preprocessing.
     Image block_12 = LoadImage("./assets/Isometric_Tiles_Pixel_Art/Blocks/blocks_12.png");
     ImageResize(&block_12, TILE_WIDTH / 2, TILE_WIDTH / 2);
     Texture2D projectile_1_texture = LoadTextureFromImage(block_12);
     UnloadImage(block_12);
-
-    Image white_full_overlay = LoadImage("./assets/Isometric_Tiles_Pixel_Art/Blocks/overlay.png");
-    white_full_overlay_texture = LoadTextureFromImage(white_full_overlay);
-    UnloadImage(white_full_overlay);
-
-    Image white_half_overlay = LoadImage("./assets/Isometric_Tiles_Pixel_Art/Blocks/half_overlay.png");
-    white_half_overlay_texture = LoadTextureFromImage(white_half_overlay);
-    UnloadImage(white_half_overlay);
 
     GAME_OBJECT_TEXTURES[ENEMY_TYPE_1] = enemy_type_1_texture;
     GAME_OBJECT_TEXTURES[ENEMY_TYPE_2] = enemy_type_2_texture;
@@ -398,10 +398,10 @@ int main(void){
 
         draw(&game_state);
 
-        char text[255];
-        sprintf(text, "fps: %d\ncount: %d\ncap: %d\n", GetFPS(), game_state.game_objects.count, game_state.game_objects.capacity);
+        // char text[255];
+        // sprintf(text, "fps: %d\ncount: %d\ncap: %d\n", GetFPS(), game_state.game_objects.count, game_state.game_objects.capacity);
 
-        DrawText(text, 10, 0, 60, BLACK);
+        // DrawText(text, 10, 0, 60, BLACK);
 
         EndDrawing();
     }
@@ -410,7 +410,7 @@ int main(void){
         // free
         free(game_state.game_objects.objects);
 
-        UnloadTexture(ground_texture);
+        UnloadTexture(ground_grass_texture);
         UnloadTexture(mouseover_texture);
         UnloadTexture(white_full_overlay_texture);
         UnloadTexture(white_half_overlay_texture);
