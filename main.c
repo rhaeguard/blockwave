@@ -1,14 +1,16 @@
 #include <stdio.h>
 #include <math.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include "raylib.h"
 #include "raymath.h"
 
-#define GRID_SIZE 25
+#define GRID_SIZE 30
 
-#define TILE_WIDTH 64
-#define TILE_HEIGHT 32
-#define VERTICAL_OFFSET 100.0
+uint8_t TILE_WIDTH = 64;
+uint8_t TILE_HEIGHT = 32;
+float VERTICAL_OFFSET;
+float HORIZONTAL_OFFSET;
 
 enum GeneralObjectType {
     ENEMY_TYPE_1,
@@ -47,13 +49,13 @@ typedef struct GameObject {
     Vector2 position;
     enum GameObjectType type;
     enum GeneralObjectType sub_type;
-    int is_active;
+    bool is_active;
 } GameObject;
 
 typedef struct GameObjects {
     GameObject* objects;
-    int count;
-    int capacity;
+    uint32_t count;
+    uint32_t capacity;
 } GameObjects;
 
 typedef struct GameState {
@@ -78,8 +80,8 @@ void resize(GameObjects* container) {
 }
 
 /* global variables start */
-int screen_width;
-int screen_height;
+uint16_t screen_width;
+uint16_t screen_height;
 Texture2D ground_grass_texture;
 Texture2D ground_pavement_texture;
 Texture2D ground_sand_texture;
@@ -89,29 +91,33 @@ Texture2D white_half_overlay_texture;
 Texture2D GAME_OBJECT_TEXTURES[10];
 /* global variables end */
 
-Vector2 toIso(Vector2 coord, bool translate_by_half_width) {
+// This function returns the screen coordinates
+// given the grid coordinates
+Vector2 toScreenCoords(Vector2 coord, bool translate_by_half_width) {
     // calculate screen coordinates
     float x = (coord.x - coord.y) * (TILE_WIDTH / 2);
     float y = (coord.x + coord.y) * (TILE_HEIGHT / 2);
 
     // some translation
     x -= (TILE_WIDTH / 2) * translate_by_half_width;
-    x += screen_width / 2;
+    x += HORIZONTAL_OFFSET;
     y += VERTICAL_OFFSET;
 
     return vec2(x, y);
 }
 
-Vector2 fromIso(Vector2 screen, bool snap_to_grid) {
-    screen.x -= screen_width / 2;
+// This function returns the grid coordinates
+// given the screen coordinates
+Vector2 toGridCoords(Vector2 screen, bool snap_to_grid) {
+    screen.x -= HORIZONTAL_OFFSET;
     screen.y -= VERTICAL_OFFSET;
 
     float x = (screen.x / (TILE_WIDTH / 2) + screen.y / (TILE_HEIGHT / 2)) / 2;
     float y = (screen.y / (TILE_HEIGHT / 2) -(screen.x / (TILE_WIDTH / 2))) / 2;
 
     if (snap_to_grid) {
-        x = floorf(x);
-        y = floorf(y);
+        x = ceilf(x);
+        y = ceilf(y);
     }
 
     return vec2(x, y);
@@ -143,14 +149,14 @@ void addEnemy(Vector2 position, enum GeneralObjectType type, GameState* game_sta
     game_object->type = ENEMY;
 
     // movement related parameters
-    game_object->game_object.enemy.start = toIso(vec2(0, position.y), false);
-    game_object->game_object.enemy.target = toIso(vec2(GRID_SIZE-1, position.y), false);
+    game_object->game_object.enemy.start = toScreenCoords(vec2(0, position.y), false);
+    game_object->game_object.enemy.target = toScreenCoords(vec2(GRID_SIZE-1, position.y), false);
     game_object->game_object.enemy.move_pct = 0.0;
     game_object->game_object.enemy.life = 100; // will be different by the enemy type
 
     game_object->position = position;
     game_object->sub_type = type;
-    game_object->is_active = 1;
+    game_object->is_active = true;
 
     game_state->game_objects.objects[game_state->game_objects.count++] = *game_object;
 }
@@ -164,7 +170,7 @@ void addDefense(Vector2 position, enum GeneralObjectType type, GameState* game_s
     game_object->game_object.defense.last_attacked = GetTime();
     game_object->position = position;
     game_object->sub_type = type;
-    game_object->is_active = 1;
+    game_object->is_active = true;
     
     game_state->game_objects.objects[game_state->game_objects.count++] = *game_object;
 }
@@ -177,7 +183,7 @@ void addProjectile(float x, float y, enum GeneralObjectType type, GameState* gam
 
     game_object->position = vec2(x, y);
     game_object->sub_type = type;
-    game_object->is_active = 1;
+    game_object->is_active = true;
 
     game_state->game_objects.objects[game_state->game_objects.count++] = *game_object;
 }
@@ -202,7 +208,7 @@ int checkProjectileCollision(GameObject* projectile, GameState* game_state) {
 }
 
 void grabUserInput(GameState* game_state) {
-    game_state->mouse_position = fromIso(GetMousePosition(), true);
+    game_state->mouse_position = toGridCoords(GetMousePosition(), true);
 
     if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT)) {
         int mpx = game_state->mouse_position.x;
@@ -246,7 +252,7 @@ void update(GameState* game_state) {
                 enemy->game_object.enemy.move_pct
             );
             // this is necessary for depth sorting
-            enemy->position = fromIso(enemy->game_object.enemy.current_iso_coord, false);
+            enemy->position = toGridCoords(enemy->game_object.enemy.current_iso_coord, false);
         } else if (object_type == DEFENSE) {
             // TODO: projectile generation should be based on charging a certain bar which would be higher/lower depending on the effectiveness of the projectile
             double last_attacked = (game_state->game_objects.objects[e].game_object.defense).last_attacked;
@@ -283,7 +289,7 @@ void draw(GameState* game_state) {
     for (int y = 0; y < GRID_SIZE; y++){
         for (int x = 0; x < GRID_SIZE; x++){
             Vector2 grid_coords = vec2(x, y);
-            Vector2 iso_coords = toIso(grid_coords, true);
+            Vector2 screen_coords = toScreenCoords(grid_coords, true);
             Vector2 mouse_coords = game_state->mouse_position;
 
             Texture2D* ground_texture = &ground_grass_texture;
@@ -296,13 +302,13 @@ void draw(GameState* game_state) {
 
             if ((int) mouse_coords.y == y) {
                 if ((int) mouse_coords.x == x && (x > 5 && x < GRID_SIZE - 2)) {
-                    DrawTextureV(mouseover_texture, iso_coords, WHITE);
+                    DrawTextureV(mouseover_texture, screen_coords, WHITE);
                 } else {
-                    DrawTextureV(*ground_texture, iso_coords, WHITE);
+                    DrawTextureV(*ground_texture, screen_coords, WHITE);
                 }
-                DrawTextureV(white_full_overlay_texture, iso_coords, WHITE);
+                DrawTextureV(white_full_overlay_texture, screen_coords, WHITE);
             } else {
-                DrawTextureV(*ground_texture, iso_coords, WHITE);
+                DrawTextureV(*ground_texture, screen_coords, WHITE);
             }
 
         }
@@ -314,25 +320,25 @@ void draw(GameState* game_state) {
         Texture2D texture = GAME_OBJECT_TEXTURES[object.sub_type];
 
         if (object.type == DEFENSE) {
-            Vector2 iso_coords = toIso(object.position, true);
-            iso_coords.y -= TILE_HEIGHT;
-            DrawTextureV(texture, iso_coords, WHITE);
+            Vector2 screen_coords = toScreenCoords(object.position, true);
+            screen_coords.y -= TILE_HEIGHT;
+            DrawTextureV(texture, screen_coords, WHITE);
 
             // draw charging animation
             float diff = GetTime() - object.game_object.defense.last_attacked;
             float pct = diff / 4.0;
-            BeginScissorMode((int) iso_coords.x, (int) ceil(iso_coords.y + 2 * TILE_HEIGHT * (1 - pct)), TILE_WIDTH, 2 * TILE_HEIGHT * pct);
-                DrawTextureV(white_half_overlay_texture, iso_coords, WHITE);
+            BeginScissorMode((int) screen_coords.x, (int) ceil(screen_coords.y + 2 * TILE_HEIGHT * (1 - pct)), TILE_WIDTH, 2 * TILE_HEIGHT * pct);
+                DrawTextureV(white_half_overlay_texture, screen_coords, WHITE);
             EndScissorMode();
         } else if (object.type == ENEMY) {
-            Vector2 iso_coords = object.game_object.enemy.current_iso_coord;
-            iso_coords.x -= TILE_WIDTH / 2;
-            iso_coords.y -= TILE_HEIGHT;
-            DrawTextureV(texture, iso_coords, WHITE);
+            Vector2 screen_coords = object.game_object.enemy.current_iso_coord;
+            screen_coords.x -= TILE_WIDTH / 2;
+            screen_coords.y -= TILE_HEIGHT;
+            DrawTextureV(texture, screen_coords, WHITE);
         } else if (object.type == PROJECTILE) {
-            Vector2 iso_coords = toIso(object.position, true);
-            iso_coords.y -= TILE_HEIGHT;
-            DrawTextureV(texture, vec2(iso_coords.x + TILE_WIDTH/4, iso_coords.y + TILE_WIDTH/4), WHITE);
+            Vector2 screen_coords = toScreenCoords(object.position, true);
+            screen_coords.y -= TILE_HEIGHT;
+            DrawTextureV(texture, vec2(screen_coords.x + TILE_WIDTH/4, screen_coords.y + TILE_WIDTH/4), WHITE);
         }
     }
 }
@@ -347,20 +353,20 @@ Texture2D loadTextureFromImage(char* filename) {
 }
 
 int main(void){
-    GameState game_state = {};
+    GameState game_state = {0};
     GameObjects objs = {0};
     game_state.game_objects = objs;
 
     SetConfigFlags(FLAG_VSYNC_HINT);
-    SetConfigFlags(FLAG_WINDOW_RESIZABLE);
+    SetConfigFlags(FLAG_FULLSCREEN_MODE);
     
     InitWindow(0, 0, "blockwave");
-    SetTargetFPS(60);
 
     int monitor = GetCurrentMonitor();
     screen_width = GetMonitorWidth(monitor);
     screen_height = GetMonitorHeight(monitor);
-    SetWindowSize(screen_width, GetMonitorHeight(monitor));
+    HORIZONTAL_OFFSET = screen_width / 2.0;
+    VERTICAL_OFFSET = ((GRID_SIZE + GRID_SIZE) * (TILE_HEIGHT / 2.0)) / 4.0;
 
     ground_grass_texture = loadTextureFromImage("Blocks/blocks_1.png");
     ground_pavement_texture = loadTextureFromImage("Blocks/blocks_56.png");
