@@ -9,6 +9,7 @@
 
 uint8_t TILE_WIDTH = 64;
 uint8_t TILE_HEIGHT = 32;
+float enemy_positions[GRID_SIZE] = {0.0};
 float VERTICAL_OFFSET;
 float HORIZONTAL_OFFSET;
 
@@ -27,9 +28,9 @@ enum GameObjectType {
 };
 
 typedef struct Enemy {
-    Vector2 start;
-    Vector2 target;
-    Vector2 current_iso_coord;
+    Vector2 start_grid_coord;
+    Vector2 target_grid_coord;
+    Vector2 current_screen_coord;
     float move_pct; // progress till dest
     float life;
 } Enemy;
@@ -83,8 +84,10 @@ void resize(GameObjects* container) {
 uint16_t screen_width;
 uint16_t screen_height;
 Texture2D ground_grass_texture;
+Texture2D ground_grass_treaded_texture;
 Texture2D ground_pavement_texture;
 Texture2D ground_sand_texture;
+Texture2D ground_sand_treaded_texture;
 Texture2D mouseover_texture;
 Texture2D white_full_overlay_texture;
 Texture2D white_half_overlay_texture;
@@ -149,8 +152,10 @@ void addEnemy(Vector2 position, enum GeneralObjectType type, GameState* game_sta
     game_object->type = ENEMY;
 
     // movement related parameters
-    game_object->game_object.enemy.start = toScreenCoords(vec2(0, position.y), false);
-    game_object->game_object.enemy.target = toScreenCoords(vec2(GRID_SIZE-1, position.y), false);
+    // game_object->game_object.enemy.start = toScreenCoords(vec2(0, position.y), false);
+    // game_object->game_object.enemy.target = toScreenCoords(vec2(GRID_SIZE-1, position.y), false);
+    game_object->game_object.enemy.start_grid_coord = vec2(0, position.y);
+    game_object->game_object.enemy.target_grid_coord = vec2(GRID_SIZE-1, position.y);
     game_object->game_object.enemy.move_pct = 0.0;
     game_object->game_object.enemy.life = 100; // will be different by the enemy type
 
@@ -238,21 +243,25 @@ void update(GameState* game_state) {
                 continue;
             } 
 
-            int speed = 0;
+            float speed = 0;
 
-            if (enemy->sub_type == ENEMY_TYPE_1) {speed = 25;}
-            else if (enemy->sub_type == ENEMY_TYPE_2) {speed = 10;}
+            if (enemy->sub_type == ENEMY_TYPE_1) {speed = 0.025;}
+            else if (enemy->sub_type == ENEMY_TYPE_2) {speed = 0.010;}
 
-            enemy->game_object.enemy.move_pct += speed * (delta_time / 1000);
+            speed *=1.3;
+
+            float dt = delta_time;
+            enemy->game_object.enemy.move_pct += speed * dt;
             enemy->game_object.enemy.move_pct = Clamp(enemy->game_object.enemy.move_pct, 0, 1);
-            // calculate the current iso position
-            enemy->game_object.enemy.current_iso_coord = Vector2Lerp(
-                enemy->game_object.enemy.start,
-                enemy->game_object.enemy.target,
+            Vector2 interpolated_grid_coord = Vector2Lerp(
+                enemy->game_object.enemy.start_grid_coord, 
+                enemy->game_object.enemy.target_grid_coord, 
                 enemy->game_object.enemy.move_pct
             );
+            enemy->game_object.enemy.current_screen_coord = toScreenCoords(interpolated_grid_coord, true);
             // this is necessary for depth sorting
-            enemy->position = toGridCoords(enemy->game_object.enemy.current_iso_coord, false);
+            enemy->position.x = roundf(interpolated_grid_coord.x);
+            enemy->position.y = roundf(interpolated_grid_coord.y);
         } else if (object_type == DEFENSE) {
             // TODO: projectile generation should be based on charging a certain bar which would be higher/lower depending on the effectiveness of the projectile
             double last_attacked = (game_state->game_objects.objects[e].game_object.defense).last_attacked;
@@ -280,11 +289,24 @@ void update(GameState* game_state) {
         }
     }
 
+    // UpdateParticles(delta_time);
+
     qsort(game_state->game_objects.objects, game_state->game_objects.count, sizeof(GameObject), compareGameObjects);
     game_state->game_objects.count -= remove_count;
 }
 
 void draw(GameState* game_state) {
+    for (int e = 0; e < game_state->game_objects.count; e++) {
+        GameObject object = game_state->game_objects.objects[e];
+
+        if (object.type == ENEMY) {
+            Enemy enemy = object.game_object.enemy;
+            int y_pos = (int)ceilf(object.position.y);
+            Vector2 grid_coords = Vector2Lerp(enemy.start_grid_coord, enemy.target_grid_coord, enemy.move_pct);
+            enemy_positions[y_pos] = grid_coords.x;
+        }
+    }
+
     // draw the grid
     for (int y = 0; y < GRID_SIZE; y++){
         for (int x = 0; x < GRID_SIZE; x++){
@@ -293,24 +315,33 @@ void draw(GameState* game_state) {
             Vector2 mouse_coords = game_state->mouse_position;
 
             Texture2D* ground_texture = &ground_grass_texture;
+            Texture2D* treaded_texture = &ground_grass_treaded_texture;
 
             if (x >= GRID_SIZE - 2) {
                 ground_texture = &ground_pavement_texture;
             } else if (x <= 5) {
                 ground_texture = &ground_sand_texture;
+                treaded_texture = &ground_sand_treaded_texture;
             }
 
             if ((int) mouse_coords.y == y) {
                 if ((int) mouse_coords.x == x && (x > 5 && x < GRID_SIZE - 2)) {
                     DrawTextureV(mouseover_texture, screen_coords, WHITE);
                 } else {
-                    DrawTextureV(*ground_texture, screen_coords, WHITE);
+                    if (enemy_positions[y] > x) {
+                        DrawTextureV(*treaded_texture, screen_coords, WHITE);
+                    } else {
+                        DrawTextureV(*ground_texture, screen_coords, WHITE);
+                    }
                 }
                 DrawTextureV(white_full_overlay_texture, screen_coords, WHITE);
             } else {
-                DrawTextureV(*ground_texture, screen_coords, WHITE);
+                if (enemy_positions[y] > x) {
+                    DrawTextureV(*treaded_texture, screen_coords, WHITE);
+                } else {
+                    DrawTextureV(*ground_texture, screen_coords, WHITE);
+                }
             }
-
         }
     }
 
@@ -331,8 +362,7 @@ void draw(GameState* game_state) {
                 DrawTextureV(white_half_overlay_texture, screen_coords, WHITE);
             EndScissorMode();
         } else if (object.type == ENEMY) {
-            Vector2 screen_coords = object.game_object.enemy.current_iso_coord;
-            screen_coords.x -= TILE_WIDTH / 2;
+            Vector2 screen_coords = object.game_object.enemy.current_screen_coord;
             screen_coords.y -= TILE_HEIGHT;
             DrawTextureV(texture, screen_coords, WHITE);
         } else if (object.type == PROJECTILE) {
@@ -341,6 +371,8 @@ void draw(GameState* game_state) {
             DrawTextureV(texture, vec2(screen_coords.x + TILE_WIDTH/4, screen_coords.y + TILE_WIDTH/4), WHITE);
         }
     }
+
+    // DrawParticles();
 }
 
 Texture2D loadTextureFromImage(char* filename) {
@@ -359,7 +391,8 @@ int main(void){
 
     SetConfigFlags(FLAG_VSYNC_HINT);
     SetConfigFlags(FLAG_FULLSCREEN_MODE);
-    
+   
+    SetTargetFPS(30);
     InitWindow(0, 0, "blockwave");
 
     int monitor = GetCurrentMonitor();
@@ -369,8 +402,10 @@ int main(void){
     VERTICAL_OFFSET = ((GRID_SIZE + GRID_SIZE) * (TILE_HEIGHT / 2.0)) / 4.0;
 
     ground_grass_texture = loadTextureFromImage("Blocks/blocks_1.png");
+    ground_grass_treaded_texture = loadTextureFromImage("Blocks/blocks_1_treaded.png");
     ground_pavement_texture = loadTextureFromImage("Blocks/blocks_56.png");
     ground_sand_texture = loadTextureFromImage("Blocks/blocks_32.png");
+    ground_sand_treaded_texture = loadTextureFromImage("Blocks/blocks_32_treaded.png");
     mouseover_texture = loadTextureFromImage("Blocks/blocks_99.png");
     white_full_overlay_texture = loadTextureFromImage("Blocks/overlay.png");
     white_half_overlay_texture = loadTextureFromImage("Blocks/half_overlay.png");
@@ -402,15 +437,8 @@ int main(void){
         update(&game_state);
 
         BeginDrawing();
-        ClearBackground(RAYWHITE);
-
-        draw(&game_state);
-
-        // char text[255];
-        // sprintf(text, "fps: %d\ncount: %d\ncap: %d\n", GetFPS(), game_state.game_objects.count, game_state.game_objects.capacity);
-
-        // DrawText(text, 10, 0, 60, BLACK);
-
+            ClearBackground(RAYWHITE);
+            draw(&game_state);
         EndDrawing();
     }
 
@@ -419,6 +447,9 @@ int main(void){
         free(game_state.game_objects.objects);
 
         UnloadTexture(ground_grass_texture);
+        UnloadTexture(ground_grass_treaded_texture);
+        UnloadTexture(ground_sand_texture);
+        UnloadTexture(ground_sand_treaded_texture);
         UnloadTexture(mouseover_texture);
         UnloadTexture(white_full_overlay_texture);
         UnloadTexture(white_half_overlay_texture);
