@@ -287,6 +287,8 @@ void update(GameState* game_state) {
         }
     }
 
+    // UpdateParticles(delta_time);
+
     qsort(game_state->game_objects.objects, game_state->game_objects.count, sizeof(GameObject), compareGameObjects);
     game_state->game_objects.count -= remove_count;
 }
