@@ -9,6 +9,17 @@
 
 #define GRID_SIZE 30
 
+#define COMPARE_FUNC(T) \
+int compare##T(const void* a, const void* b) {  \
+    T* o1 = ( (T*) a );                         \
+    T* o2 = ( (T*) b );                         \
+    if (o1->life <= 0) return 1;                \
+    if (o2->life <= 0) return -1;               \
+    Vector2 p1 = o1->current_grid_coord;        \
+    Vector2 p2 = o2->current_grid_coord;        \
+    return isometricViewCompareVec2(&p1, &p2);  \
+}
+
 uint8_t TILE_WIDTH = 64;
 uint8_t TILE_HEIGHT = 32;
 float enemy_positions[GRID_SIZE] = {0.0};
@@ -28,13 +39,6 @@ typedef struct GameObject {
     uint32_t id;
 } GameObject;
 
-uint32_t last_id = 0;
-
-uint32_t generate_id() {
-    last_id += 1;
-    return last_id;
-}
-
 enum EnemyType {
     ENEMY_SLOW ,
     ENEMY_FAST,
@@ -48,7 +52,6 @@ typedef struct Enemy {
     Vector2 current_screen_coord;
     float move_pct; // progress till dest
     float life;
-    uint32_t id;
     enum EnemyType type;
 } Enemy;
 
@@ -68,7 +71,6 @@ typedef struct Defense {
     Vector2 current_grid_coord;
     double last_attacked;
     float life;
-    uint32_t id;
     enum DefenseType type;
 } Defense;
 
@@ -86,7 +88,6 @@ enum ProjectileType {
 
 typedef struct Projectile {
     Vector2 current_grid_coord;
-    uint32_t id;
     enum ProjectileType type;
     float life;
 } Projectile;
@@ -179,44 +180,9 @@ int isometricViewCompareVec2(Vector2* p1, Vector2* p2) {
     return p1->x - p2->x;
 }
 
-int compareEnemy(const void* a, const void* b) {
-    Enemy* o1 = ( (Enemy*) a );
-    Enemy* o2 = ( (Enemy*) b );
-
-    if (o1->life <= 0) return 1;
-    if (o2->life <= 0) return -1;
-
-    Vector2 p1 = o1->current_grid_coord;
-    Vector2 p2 = o2->current_grid_coord;
-
-    return isometricViewCompareVec2(&p1, &p2);
-}
-
-int compareDefense(const void* a, const void* b) {
-    Defense* o1 = ( (Defense*) a );
-    Defense* o2 = ( (Defense*) b );
-
-    if (o1->life <= 0) return 1;
-    if (o2->life <= 0) return -1;
-
-    Vector2 p1 = o1->current_grid_coord;
-    Vector2 p2 = o2->current_grid_coord;
-
-    return isometricViewCompareVec2(&p1, &p2);
-}
-
-int compareProjectile(const void* a, const void* b) {
-    Projectile* o1 = ( (Projectile*) a );
-    Projectile* o2 = ( (Projectile*) b );
-
-    if (o1->life <= 0) return 1;
-    if (o2->life <= 0) return -1;
-
-    Vector2 p1 = o1->current_grid_coord;
-    Vector2 p2 = o2->current_grid_coord;
-
-    return isometricViewCompareVec2(&p1, &p2);
-}
+COMPARE_FUNC(Enemy);
+COMPARE_FUNC(Defense);
+COMPARE_FUNC(Projectile);
 
 uint8_t isometricViewCompare(
     Defense* d,
@@ -255,7 +221,6 @@ void addEnemy(Vector2 grid_coord, enum EnemyType type) {
     enemy->target_grid_coord = vec2(GRID_SIZE-1, grid_coord.y);
     enemy->move_pct = 0.0;
     enemy->life = 100; // will be different by the enemy type
-    enemy->id = generate_id();
 
     enemy->current_grid_coord = grid_coord;
 }
@@ -268,7 +233,6 @@ void addDefense(Vector2 position, enum DefenseType type) {
     defense->current_grid_coord = position;
     defense->last_attacked = GetTime();
     defense->life = 100;
-    defense->id = generate_id();
 }
 
 void addProjectile(float x, float y, enum ProjectileType type) {
@@ -277,7 +241,6 @@ void addProjectile(float x, float y, enum ProjectileType type) {
     Projectile* projectile = &(projectiles.members[projectiles.count++]); 
     projectile->type = type;
     projectile->current_grid_coord = vec2(x, y);
-    projectile->id = generate_id();
     projectile->life = 100;
 }
 
