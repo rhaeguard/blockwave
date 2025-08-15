@@ -1,0 +1,19 @@
+[
+    {
+        "directory": "C:\\Programming\\blockwave",
+        "arguments": [
+            "gcc",
+            "main.c",
+            "-g",
+            "-std=c99",
+            "-Wall",
+            "-I./include",
+            "-L./lib",
+            "-l:raylib.dll",
+            "-lm",
+            "-o",
+            "game"
+        ],
+        "file": "main.c"
+    }
+]

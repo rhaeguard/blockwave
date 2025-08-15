@@ -2,3 +2,4 @@ game
 .vscode/
 raylib/
 *.exe
+.cache/
