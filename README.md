@@ -1,6 +1,6 @@
 # blockwave
 
-an isometric tower defense game
+an isometric tower defense game, kinda.
 
 progress so far
 
@@ -20,7 +20,7 @@ progress so far
     - [ ] Limited inventory
 - [ ] Customize the sprites (using existing block sprites for now)
 - [ ] Enemy waves
-- [ ] Publish on itch.io? (using web assembly)
+- [ ] Publish on itch.io? (using web assembly? emscripten?)
 
 ## Assets
 
