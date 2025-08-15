@@ -14,6 +14,7 @@ uint8_t TILE_HEIGHT = 32;
 float enemy_positions[GRID_SIZE] = {0.0};
 float VERTICAL_OFFSET;
 float HORIZONTAL_OFFSET;
+Vector2 DUMMY_REFERENCE = {.x = 99999, .y = 99999};
 
 enum GameObjectType {
     GO_ENEMY, 
@@ -169,6 +170,15 @@ Vector2 toGridCoords(Vector2 screen, bool snap_to_grid) {
     return vec2(x, y);
 }
 
+int isometricViewCompareVec2(Vector2* p1, Vector2* p2) {
+    if (p1->y < p2->y) {
+        return -1;
+    } else if (p1->y > p2->y) {
+        return 1;
+    } 
+    return p1->x - p2->x;
+}
+
 int compareEnemy(const void* a, const void* b) {
     Enemy* o1 = ( (Enemy*) a );
     Enemy* o2 = ( (Enemy*) b );
@@ -179,13 +189,7 @@ int compareEnemy(const void* a, const void* b) {
     Vector2 p1 = o1->current_grid_coord;
     Vector2 p2 = o2->current_grid_coord;
 
-    if (p1.y < p2.y) {
-        return -1;
-    } else if (p1.y > p2.y) {
-        return 1;
-    } 
-    
-    return p1.x - p2.x;
+    return isometricViewCompareVec2(&p1, &p2);
 }
 
 int compareDefense(const void* a, const void* b) {
@@ -198,13 +202,7 @@ int compareDefense(const void* a, const void* b) {
     Vector2 p1 = o1->current_grid_coord;
     Vector2 p2 = o2->current_grid_coord;
 
-    if (p1.y < p2.y) {
-        return -1;
-    } else if (p1.y > p2.y) {
-        return 1;
-    } 
-    
-    return p1.x - p2.x;
+    return isometricViewCompareVec2(&p1, &p2);
 }
 
 int compareProjectile(const void* a, const void* b) {
@@ -217,22 +215,7 @@ int compareProjectile(const void* a, const void* b) {
     Vector2 p1 = o1->current_grid_coord;
     Vector2 p2 = o2->current_grid_coord;
 
-    if (p1.y < p2.y) {
-        return -1;
-    } else if (p1.y > p2.y) {
-        return 1;
-    } 
-    
-    return p1.x - p2.x;
-}
-
-int isometricViewCompareVec2(Vector2* p1, Vector2* p2) {
-    if (p1->y < p2->y) {
-        return -1;
-    } else if (p1->y > p2->y) {
-        return 1;
-    } 
-    return p1->x - p2->x;
+    return isometricViewCompareVec2(&p1, &p2);
 }
 
 uint8_t isometricViewCompare(
@@ -240,7 +223,6 @@ uint8_t isometricViewCompare(
     Enemy* e,
     Projectile* p
 ) {
-    Vector2 DUMMY_REFERENCE = {.x = 99999, .y = 99999};
     Vector2 defense_grid_coords = d == NULL ? DUMMY_REFERENCE : d->current_grid_coord;
     Vector2 enemy_grid_coords = e == NULL ? DUMMY_REFERENCE : e->current_grid_coord;
     Vector2 projectile_grid_coords = p == NULL ? DUMMY_REFERENCE : p->current_grid_coord;
