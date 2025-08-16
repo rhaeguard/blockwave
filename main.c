@@ -9,6 +9,9 @@
 
 #define GRID_SIZE 30
 
+#define DEBUG 1
+#define DEBUG_PRINT if (DEBUG) printf
+
 #define COMPARE_FUNC(T) \
 int compare##T(const void* a, const void* b) {  \
     T* o1 = ( (T*) a );                         \
@@ -20,8 +23,8 @@ int compare##T(const void* a, const void* b) {  \
     return isometricViewCompareVec2(&p1, &p2);  \
 }
 
-uint8_t TILE_WIDTH = 64;
-uint8_t TILE_HEIGHT = 32;
+float TILE_WIDTH = 64;
+float TILE_HEIGHT = 32;
 float enemy_positions[GRID_SIZE] = {0.0};
 float VERTICAL_OFFSET;
 float HORIZONTAL_OFFSET;
@@ -88,6 +91,7 @@ enum ProjectileType {
 
 typedef struct Projectile {
     Vector2 current_grid_coord;
+    Vector2 start_grid_coord;
     enum ProjectileType type;
     float life;
 } Projectile;
@@ -136,6 +140,7 @@ Texture2D ground_sand_treaded_texture;
 Texture2D mouseover_texture;
 Texture2D white_full_overlay_texture;
 Texture2D white_half_overlay_texture;
+Texture2D machine_gun_texture;
 Texture2D GAME_OBJECT_TEXTURES[10];
 /* global variables end */
 
@@ -235,24 +240,26 @@ void addDefense(Vector2 position, enum DefenseType type) {
     defense->life = 100;
 }
 
-void addProjectile(float x, float y, enum ProjectileType type) {
+void addProjectile(float x, float y, Vector2 start_grid_coord, enum ProjectileType type) {
     projectiles.members = resize(&projectiles, projectiles.members, sizeof(Projectile));
 
     Projectile* projectile = &(projectiles.members[projectiles.count++]); 
     projectile->type = type;
     projectile->current_grid_coord = vec2(x, y);
+    projectile->start_grid_coord = vec2(start_grid_coord.x, start_grid_coord.y);
     projectile->life = 100;
 }
 
 int checkProjectileCollision(Projectile* projectile) {
     Vector2 pp = projectile->current_grid_coord;
+    Vector2 st = projectile->start_grid_coord;
 
     for (int i=0; i < enemies.count; i++) {
         Enemy* enemy = &(enemies.members[i]); 
         Vector2 ep = enemy->current_grid_coord;
         if (ep.y != pp.y) { continue; }
 
-        bool collison_detected = (ep.x + 1) > pp.x;
+        bool collison_detected = (ep.x + 1 > pp.x) && (ep.x <= st.x);
         if (collison_detected) {
             return i;
         }
@@ -322,7 +329,7 @@ void update() {
         if (time_passed < 4.0) { continue; }
 
         Vector2 p = defense->current_grid_coord;
-        addProjectile(p.x-1, p.y, PROJECTILE_FAST);
+        addProjectile(p.x-1, p.y, p, PROJECTILE_FAST);
         defense->last_attacked = GetTime();
     }
 
@@ -341,6 +348,9 @@ void update() {
         if (projectile->current_grid_coord.x < 0 || collided_object_pos != -1) {
             projectile->life = 0;
             remove_count++;
+        }
+
+        if (collided_object_pos != -1) {
             (&enemies.members[collided_object_pos])->life -= 40;
         }
     }
@@ -462,7 +472,7 @@ Texture2D loadTextureFromImage(char* filename) {
 }
 
 void init(void) {
-    enemies = (Enemies){.count=0, .capacity=0, .members=NULL};
+    enemies = (Enemies){0};
     enemies.members = resize(&enemies, enemies.members, sizeof(Enemy));
 
     defenses = (Defenses){0};
@@ -479,11 +489,15 @@ int main(void){
     SetConfigFlags(FLAG_FULLSCREEN_MODE);
    
     SetTargetFPS(30);
-    InitWindow(0, 0, "blockwave");
+    InitWindow(0, 00, "blockwave");
 
-    int monitor = GetCurrentMonitor();
-    screen_width = GetMonitorWidth(monitor);
-    screen_height = GetMonitorHeight(monitor);
+    screen_width = GetScreenWidth();
+    screen_height = GetScreenHeight();
+
+    //  2560 x 1440
+    TILE_HEIGHT = (32.0 * screen_height) / 1440;
+    TILE_WIDTH = 2 * TILE_HEIGHT;
+
     HORIZONTAL_OFFSET = screen_width / 2.0;
     VERTICAL_OFFSET = ((GRID_SIZE + GRID_SIZE) * (TILE_HEIGHT / 2.0)) / 4.0;
 
@@ -495,6 +509,7 @@ int main(void){
     mouseover_texture = loadTextureFromImage("Blocks/blocks_99.png");
     white_full_overlay_texture = loadTextureFromImage("Blocks/overlay.png");
     white_half_overlay_texture = loadTextureFromImage("Blocks/half_overlay.png");
+    machine_gun_texture = loadTextureFromImage("Blocks/mgun.png");
 
     Texture2D enemy_type_1_texture = loadTextureFromImage("Blocks/blocks_30.png");
     Texture2D enemy_type_2_texture = loadTextureFromImage("Blocks/blocks_31.png");
@@ -509,12 +524,12 @@ int main(void){
 
     GAME_OBJECT_TEXTURES[ENEMY_SLOW] = enemy_type_1_texture;
     GAME_OBJECT_TEXTURES[ENEMY_FAST] = enemy_type_2_texture;
-    GAME_OBJECT_TEXTURES[DEFENSE_SLOW] = defender_type_1_texture;
+    GAME_OBJECT_TEXTURES[DEFENSE_SLOW] = machine_gun_texture;
     GAME_OBJECT_TEXTURES[DEFENSE_FAST] = defender_type_2_texture;
     GAME_OBJECT_TEXTURES[PROJECTILE_FAST] = projectile_1_texture;
 
-    addEnemy(vec2(0, 9), ENEMY_SLOW);
-    addEnemy(vec2(0, 13), ENEMY_FAST);
+    // addEnemy(vec2(0, 9), ENEMY_SLOW);
+    // addEnemy(vec2(0, 13), ENEMY_FAST);
     addEnemy(vec2(0, 18), ENEMY_FAST);
 
     while (!WindowShouldClose())
@@ -528,12 +543,18 @@ int main(void){
         EndDrawing();
     }
 
+    DEBUG_PRINT("Exiting the game\n");
     {
         // free
+        DEBUG_PRINT("freeing...\n");
         free(defenses.members);
+        DEBUG_PRINT("freed defenses\n");
         free(enemies.members);
+        DEBUG_PRINT("freed enemies\n");
         free(projectiles.members);
-
+        DEBUG_PRINT("freed projectiles\n");
+        
+        DEBUG_PRINT("unloading textures...\n");
         UnloadTexture(ground_grass_texture);
         UnloadTexture(ground_grass_treaded_texture);
         UnloadTexture(ground_sand_texture);
@@ -541,14 +562,16 @@ int main(void){
         UnloadTexture(mouseover_texture);
         UnloadTexture(white_full_overlay_texture);
         UnloadTexture(white_half_overlay_texture);
+        UnloadTexture(machine_gun_texture);
+        DEBUG_PRINT("unloading textures...halfway there\n");
         
         UnloadTexture(enemy_type_1_texture);
         UnloadTexture(enemy_type_2_texture);
         UnloadTexture(defender_type_1_texture);
         UnloadTexture(defender_type_2_texture);
         UnloadTexture(projectile_1_texture);
+        DEBUG_PRINT("unloading textures...done!\n");
     }
-
 
     CloseWindow();
 
