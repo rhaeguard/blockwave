@@ -129,6 +129,118 @@ Vector2 vec2(float x, float y) {
     return (Vector2) {.x=x, .y=y};
 }
 
+// returns a random float between [0, 1]
+float getRandomFloat() {
+    float r = (float)rand() / (float)RAND_MAX;
+    return r;
+}
+
+// Shards start
+typedef struct Shard {
+    float life;
+    float radius;
+    Vector2 position;
+    Vector2 velocity;
+    Vector2 poly_points[7];
+    float angles[7];
+    uint8_t count;
+    Color color;
+} Shard;
+
+typedef struct Shards {
+    uint32_t count;
+    uint32_t capacity;
+    Shard* members;
+} Shards;
+
+Vector2 shard_getPoint(float angle, Vector2 e_radius) {
+    float theta = angle * DEG2RAD;
+
+    float x = e_radius.x * cosf(theta);
+    float y = e_radius.y * sinf(theta);
+
+    return (Vector2) {.x = x, .y = y};
+}
+
+int compare_floats(const void *a, const void *b) {
+    float fa = *(const float*)a;
+    float fb = *(const float*)b;
+
+    if (fa < fb) return -1;
+    if (fa > fb) return  1;
+    return 0;   // equal
+}
+
+void shards_setAngles(Shard* shard) {
+    int n = 3+ rand() % 5; // at most  7 angles
+
+    for (uint8_t i = 0; i < n; i++) {
+        float r = (float)rand() / (float)RAND_MAX;
+        shard->angles[i] = r * 355.23;
+    }
+
+    shard->count = n;
+    qsort(shard->angles, shard->count, sizeof(float), compare_floats);
+}
+
+void shards_getPolygon(
+    Vector2 e_radius,
+    Shard* shard
+) {
+    qsort(shard->angles, shard->count, sizeof(float), compare_floats);
+
+    for (uint8_t i = 0; i < shard->count; i++) {
+        Vector2 pt = shard_getPoint(shard->angles[i], e_radius);
+        shard->poly_points[i] = Vector2Add(pt, shard->position);
+    }
+}
+
+void shard_update(Shard* shard) {
+    shard->life -= 0.0167 * 2;
+
+    if (shard->life <= 0) {
+        return;
+    }
+
+    shard->position = Vector2Add(shard->position, shard->velocity);
+
+    for (uint8_t i = 0; i < shard->count; i++) {
+        shard->angles[i] += 10.0;
+    }
+
+    Vector2 e_radius = {
+        .x = shard->radius * 1.5,
+        .y = shard->radius
+    };
+
+    shards_getPolygon(e_radius, shard);
+}
+
+void shard_draw(Shard* shard) {
+    if (shard->life <= 0) {
+        return;
+    }
+
+    float alpha = shard->life / 2.0;
+
+    Vector2 p0 = shard->poly_points[0];
+
+    uint8_t count = shard->count;
+
+    for (uint8_t i=1; i<count-1; i++) {
+        Vector2 p1 = shard->poly_points[i%count];
+        Vector2 p2 = shard->poly_points[i+1];
+
+        DrawTriangle(
+            p2,
+            p1,
+            p0,
+            ColorAlpha(shard->color, alpha)
+        );
+    }
+}
+// Shards end
+
 void* resize(void* container_ptr, void* objects, size_t object_size) {
     SizedContainer* container = (SizedContainer*) container_ptr;
     if (container->count >= container->capacity) {
@@ -138,6 +250,9 @@ void* resize(void* container_ptr, void* objects, size_t object_size) {
             container->capacity *= 2;
         }
         return realloc(objects, container->capacity * object_size);
+    } else if (container->capacity > container->count * 2) {
+        container->capacity *= 0.5;
+        return realloc(objects, container->capacity * object_size);
     }
     return objects;
 }
@@ -146,6 +261,7 @@ void* resize(void* container_ptr, void* objects, size_t object_size) {
 Enemies enemies;
 Defenses defenses;
 Projectiles projectiles;
+Shards shards;
 Vector2 mouse_position;
 //
 uint16_t screen_width;
@@ -156,13 +272,13 @@ Texture2D GAME_OBJECT_TEXTURES[10];
 
 // This function returns the screen coordinates
 // given the grid coordinates
-Vector2 toScreenCoords(Vector2 coord, bool translate_by_half_width) {
+Vector2 toScreenCoords(Vector2 coord) {
     // calculate screen coordinates
     float x = (coord.x - coord.y) * (TILE_WIDTH / 2.0);
     float y = (coord.x + coord.y) * (TILE_HEIGHT / 2.0);
 
     // some translation
-    x -= (TILE_WIDTH / 2.0) * translate_by_half_width;
+    x -= TILE_WIDTH / 2.0;
     x += HORIZONTAL_OFFSET;
     y += VERTICAL_OFFSET;
 
@@ -171,17 +287,16 @@ Vector2 toScreenCoords(Vector2 coord, bool translate_by_half_width) {
 
 // This function returns the grid coordinates
 // given the screen coordinates
-Vector2 toGridCoords(Vector2 screen, bool snap_to_grid) {
+Vector2 toGridCoords(Vector2 screen) {
     screen.x -= HORIZONTAL_OFFSET;
     screen.y -= VERTICAL_OFFSET;
 
     float x = (screen.x / (TILE_WIDTH / 2.0) + screen.y / (TILE_HEIGHT / 2.0)) / 2;
     float y = (screen.y / (TILE_HEIGHT / 2.0) -(screen.x / (TILE_WIDTH / 2.0))) / 2;
 
-    if (snap_to_grid) {
-        x = ceilf(x);
-        y = ceilf(y);
-    }
+    // snap to grid
+    x = ceilf(x);
+    y = ceilf(y);
 
     return vec2(x, y);
 }
@@ -198,6 +313,16 @@ int isometricViewCompareVec2(Vector2* p1, Vector2* p2) {
 COMPARE_FUNC(Enemy);
 COMPARE_FUNC(Defense);
 COMPARE_FUNC(Projectile);
+
+int compareShard(const void *a, const void *b) {
+  Shard *o1 = ((Shard *)a);
+  Shard *o2 = ((Shard *)b);
+  if (o1->life <= 0)
+    return 1;
+  if (o2->life <= 0)
+    return -1;
+  return 0;
+}
 
 uint8_t isometricViewCompare(
     Defense* d,
@@ -260,6 +385,24 @@ void addProjectile(float x, float y, Vector2 start_grid_coord, enum ProjectileTy
     projectile->life = 100;
 }
 
+void addShard(float x, float y, float angle, float speed, float radius, float life, Color color) {
+    shards.members = resize(&shards, shards.members, sizeof(Shard));
+
+    float angle_in_radians = angle * DEG2RAD;
+
+    Shard* shard = &(shards.members[shards.count++]); 
+    shard->position = vec2(x, y);
+    shard->life = life;
+    shard->velocity = (Vector2) {
+        .x = cosf(angle_in_radians) * speed,
+        .y = -sinf(angle_in_radians) * speed,
+    };
+    shard->color = color;
+    shard->radius = radius;
+
+    shards_setAngles(shard);
+}
+
 int checkProjectileCollision(Projectile* projectile) {
     Vector2 pp = projectile->current_grid_coord;
     Vector2 st = projectile->start_grid_coord;
@@ -279,7 +422,7 @@ int checkProjectileCollision(Projectile* projectile) {
 }
 
 void grabUserInput() {
-    mouse_position = toGridCoords(GetMousePosition(), true);
+    mouse_position = toGridCoords(GetMousePosition());
 
     if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT)) {
         int mpx = mouse_position.x;
@@ -320,7 +463,7 @@ void update() {
             enemy->target_grid_coord, 
             enemy->move_pct
         );
-        enemy->current_screen_coord = toScreenCoords(interpolated_grid_coord, true);
+        enemy->current_screen_coord = toScreenCoords(interpolated_grid_coord);
         // this is necessary for depth sorting
         enemy->current_grid_coord.x = roundf(interpolated_grid_coord.x);
         enemy->current_grid_coord.y = roundf(interpolated_grid_coord.y);
@@ -358,6 +501,21 @@ void update() {
         if (projectile->current_grid_coord.x < 0 || collided_object_pos != -1) {
             projectile->life = 0;
             remove_count++;
+
+            Vector2 screen_coords = toScreenCoords(projectile->current_grid_coord);
+
+            for (float f=0.0; f < 100.0; f += 0.5) {
+                addShard(
+                    screen_coords.x,
+                    screen_coords.y,
+                    3.6*f, 
+                    0.008 * screen_width * getRandomFloat(), //* random 
+                    (screen_width / 256.0) * (getRandomFloat() / 2), 
+                    getRandomFloat(), 
+                    RED
+                );
+            }
+            DEBUG_PRINT("added shards [cap:%d, count:%d]\n", shards.capacity, shards.count);
         }
 
         if (collided_object_pos != -1) {
@@ -367,6 +525,19 @@ void update() {
 
     qsort(projectiles.members, projectiles.count, sizeof(Projectile), compareProjectile);
     projectiles.count -= remove_count;
+
+    // update shards
+    remove_count = 0;
+    for (int i=0; i < shards.count; i++) {
+        Shard* shard = &(shards.members[i]);
+        shard_update(shard);
+        if (shard->life <= 0) {
+            remove_count++;
+        }
+    }
+
+    qsort(shards.members, shards.count, sizeof(Shard), compareShard);
+    shards.count -= remove_count;
 }
 
 void draw() {
@@ -386,7 +557,7 @@ void draw() {
     for (int y = 0; y < GRID_SIZE; y++){
         for (int x = 0; x < GRID_SIZE; x++){
             Vector2 grid_coords = vec2(x, y);
-            Vector2 screen_coords = toScreenCoords(grid_coords, true);
+            Vector2 screen_coords = toScreenCoords(grid_coords);
 
             Texture2D* ground_texture = &ALL_TEXTURES[TEXTURE_GROUND_GRASS];
             Texture2D* treaded_texture = &ALL_TEXTURES[TEXTURE_GROUND_GRASS_TREADED];
@@ -438,7 +609,7 @@ void draw() {
             if (smallest == 1) {
                 di++;
                 
-                Vector2 screen_coords = toScreenCoords(defense->current_grid_coord, true);
+                Vector2 screen_coords = toScreenCoords(defense->current_grid_coord);
                 screen_coords.y -= TILE_HEIGHT;
                 
                 Texture2D texture = GAME_OBJECT_TEXTURES[defense->type];
@@ -462,12 +633,20 @@ void draw() {
                 pi++;
 
                 Texture2D texture = GAME_OBJECT_TEXTURES[projectile->type];
-                Vector2 screen_coords = toScreenCoords(projectile->current_grid_coord, true);
+                Vector2 screen_coords = toScreenCoords(projectile->current_grid_coord);
                 screen_coords.y -= TILE_HEIGHT;
                 DrawTextureV(texture, vec2(screen_coords.x + TILE_WIDTH/4.0, screen_coords.y + TILE_WIDTH/4.0), WHITE);
             } else {
                 // what??
             }
+        }
+    }
+
+    {
+        // DEBUG_PRINT("drawing shards [cap:%d, count:%d]\n", shards.capacity, shards.count);
+        for (int i=0; i < shards.count; i++) {
+            Shard* shard = &(shards.members[i]);
+            shard_draw(shard);
         }
     }
 }
@@ -490,13 +669,16 @@ void init(void) {
 
     projectiles = (Projectiles){0};
     projectiles.members = resize(&projectiles, projectiles.members, sizeof(Projectile));
+
+    shards = (Shards) {0};
+    shards.members = resize(&shards, shards.members, sizeof(Shard));
 }
 
 int main(void){
     init();
 
     SetConfigFlags(FLAG_VSYNC_HINT);
-    SetConfigFlags(FLAG_FULLSCREEN_MODE);
+    // SetConfigFlags(FLAG_FULLSCREEN_MODE);
    
     SetTargetFPS(30);
     InitWindow(0, 0, "blockwave");
@@ -537,8 +719,8 @@ int main(void){
     GAME_OBJECT_TEXTURES[DEFENSE_FAST] = ALL_TEXTURES[TEXTURE_DEFENDER_TYPE_1];
     GAME_OBJECT_TEXTURES[PROJECTILE_FAST] = ALL_TEXTURES[TEXTURE_PROJECTILE_1];
 
-    // addEnemy(vec2(0, 9), ENEMY_SLOW);
-    // addEnemy(vec2(0, 13), ENEMY_FAST);
+    addEnemy(vec2(0, 9), ENEMY_SLOW);
+    addEnemy(vec2(0, 13), ENEMY_FAST);
     addEnemy(vec2(0, 18), ENEMY_FAST);
 
     while (!WindowShouldClose())
@@ -562,6 +744,8 @@ int main(void){
         DEBUG_PRINT("freed enemies\n");
         free(projectiles.members);
         DEBUG_PRINT("freed projectiles\n");
+        free(shards.members);
+        DEBUG_PRINT("freed shards\n");
         
         DEBUG_PRINT("unloading textures...\n");
         for(uint8_t i=0; i<TEXTURE_COUNT; i++) {
