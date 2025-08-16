@@ -107,6 +107,24 @@ typedef struct SizedContainer {
     uint32_t capacity;
 } SizedContainer;
 
+enum TextureIds {
+    TEXTURE_GROUND_GRASS,
+    TEXTURE_GROUND_GRASS_TREADED,
+    TEXTURE_GROUND_PAVEMENT,
+    TEXTURE_GROUND_SAND,
+    TEXTURE_GROUND_SAND_TREADED,
+    TEXTURE_MOUSEOVER,
+    TEXTURE_WHITE_FULL_OVERLAY,
+    TEXTURE_WHITE_HALF_OVERLAY,
+    TEXTURE_MACHINE_GUN,
+    TEXTURE_ENEMY_TYPE_1,
+    TEXTURE_ENEMY_TYPE_2,
+    TEXTURE_DEFENDER_TYPE_1,
+    TEXTURE_DEFENDER_TYPE_2,
+    TEXTURE_PROJECTILE_1,
+    TEXTURE_COUNT
+};
+
 Vector2 vec2(float x, float y) {
     return (Vector2) {.x=x, .y=y};
 }
@@ -132,15 +150,7 @@ Vector2 mouse_position;
 //
 uint16_t screen_width;
 uint16_t screen_height;
-Texture2D ground_grass_texture;
-Texture2D ground_grass_treaded_texture;
-Texture2D ground_pavement_texture;
-Texture2D ground_sand_texture;
-Texture2D ground_sand_treaded_texture;
-Texture2D mouseover_texture;
-Texture2D white_full_overlay_texture;
-Texture2D white_half_overlay_texture;
-Texture2D machine_gun_texture;
+Texture2D ALL_TEXTURES[TEXTURE_COUNT + 1];
 Texture2D GAME_OBJECT_TEXTURES[10];
 /* global variables end */
 
@@ -378,19 +388,19 @@ void draw() {
             Vector2 grid_coords = vec2(x, y);
             Vector2 screen_coords = toScreenCoords(grid_coords, true);
 
-            Texture2D* ground_texture = &ground_grass_texture;
-            Texture2D* treaded_texture = &ground_grass_treaded_texture;
+            Texture2D* ground_texture = &ALL_TEXTURES[TEXTURE_GROUND_GRASS];
+            Texture2D* treaded_texture = &ALL_TEXTURES[TEXTURE_GROUND_GRASS_TREADED];
 
             if (x >= GRID_SIZE - 2) {
-                ground_texture = &ground_pavement_texture;
+                ground_texture = &ALL_TEXTURES[TEXTURE_GROUND_PAVEMENT];
             } else if (x <= 5) {
-                ground_texture = &ground_sand_texture;
-                treaded_texture = &ground_sand_treaded_texture;
+                ground_texture = &ALL_TEXTURES[TEXTURE_GROUND_SAND];
+                treaded_texture = &ALL_TEXTURES[TEXTURE_GROUND_SAND_TREADED];
             }
 
             if ((int) mouse_position.y == y) {
                 if ((int) mouse_position.x == x && (x > 5 && x < GRID_SIZE - 2)) {
-                    DrawTextureV(mouseover_texture, screen_coords, WHITE);
+                    DrawTextureV(ALL_TEXTURES[TEXTURE_MOUSEOVER], screen_coords, WHITE);
                 } else {
                     if (enemy_positions[y] > x) {
                         DrawTextureV(*treaded_texture, screen_coords, WHITE);
@@ -398,7 +408,7 @@ void draw() {
                         DrawTextureV(*ground_texture, screen_coords, WHITE);
                     }
                 }
-                DrawTextureV(white_full_overlay_texture, screen_coords, WHITE);
+                DrawTextureV(ALL_TEXTURES[TEXTURE_WHITE_FULL_OVERLAY], screen_coords, WHITE);
             } else {
                 if (enemy_positions[y] > x) {
                     DrawTextureV(*treaded_texture, screen_coords, WHITE);
@@ -438,7 +448,7 @@ void draw() {
                 float diff = GetTime() - defense->last_attacked;
                 float pct = diff / 4.0;
                 BeginScissorMode((int) screen_coords.x, (int) ceil(screen_coords.y + 2 * TILE_HEIGHT * (1 - pct)), TILE_WIDTH, 2 * TILE_HEIGHT * pct);
-                    DrawTextureV(white_half_overlay_texture, screen_coords, WHITE);
+                    DrawTextureV(ALL_TEXTURES[TEXTURE_WHITE_HALF_OVERLAY], screen_coords, WHITE);
                 EndScissorMode();
             } else if (smallest == 2) {
                 ei++;
@@ -489,7 +499,7 @@ int main(void){
     SetConfigFlags(FLAG_FULLSCREEN_MODE);
    
     SetTargetFPS(30);
-    InitWindow(0, 00, "blockwave");
+    InitWindow(0, 0, "blockwave");
 
     screen_width = GetScreenWidth();
     screen_height = GetScreenHeight();
@@ -501,32 +511,31 @@ int main(void){
     HORIZONTAL_OFFSET = screen_width / 2.0;
     VERTICAL_OFFSET = ((GRID_SIZE + GRID_SIZE) * (TILE_HEIGHT / 2.0)) / 4.0;
 
-    ground_grass_texture = loadTextureFromImage("Blocks/blocks_1.png");
-    ground_grass_treaded_texture = loadTextureFromImage("Blocks/blocks_1_treaded.png");
-    ground_pavement_texture = loadTextureFromImage("Blocks/blocks_56.png");
-    ground_sand_texture = loadTextureFromImage("Blocks/blocks_32.png");
-    ground_sand_treaded_texture = loadTextureFromImage("Blocks/blocks_32_treaded.png");
-    mouseover_texture = loadTextureFromImage("Blocks/blocks_99.png");
-    white_full_overlay_texture = loadTextureFromImage("Blocks/overlay.png");
-    white_half_overlay_texture = loadTextureFromImage("Blocks/half_overlay.png");
-    machine_gun_texture = loadTextureFromImage("Blocks/mgun.png");
-
-    Texture2D enemy_type_1_texture = loadTextureFromImage("Blocks/blocks_30.png");
-    Texture2D enemy_type_2_texture = loadTextureFromImage("Blocks/blocks_31.png");
-    Texture2D defender_type_1_texture = loadTextureFromImage("Blocks/blocks_24.png");
-    Texture2D defender_type_2_texture = loadTextureFromImage("Blocks/blocks_58.png");
+    ALL_TEXTURES[TEXTURE_GROUND_GRASS] = loadTextureFromImage("Blocks/blocks_1.png");
+    ALL_TEXTURES[TEXTURE_GROUND_GRASS_TREADED] = loadTextureFromImage("Blocks/blocks_1_treaded.png");
+    ALL_TEXTURES[TEXTURE_GROUND_PAVEMENT] = loadTextureFromImage("Blocks/blocks_56.png");
+    ALL_TEXTURES[TEXTURE_GROUND_SAND] = loadTextureFromImage("Blocks/blocks_32.png");
+    ALL_TEXTURES[TEXTURE_GROUND_SAND_TREADED] = loadTextureFromImage("Blocks/blocks_32_treaded.png");
+    ALL_TEXTURES[TEXTURE_MOUSEOVER] = loadTextureFromImage("Blocks/blocks_99.png");
+    ALL_TEXTURES[TEXTURE_WHITE_FULL_OVERLAY] = loadTextureFromImage("Blocks/overlay.png");
+    ALL_TEXTURES[TEXTURE_WHITE_HALF_OVERLAY] = loadTextureFromImage("Blocks/half_overlay.png");
+    ALL_TEXTURES[TEXTURE_MACHINE_GUN] = loadTextureFromImage("Blocks/mgun.png");
+    ALL_TEXTURES[TEXTURE_ENEMY_TYPE_1] = loadTextureFromImage("Blocks/blocks_30.png");
+    ALL_TEXTURES[TEXTURE_ENEMY_TYPE_2] = loadTextureFromImage("Blocks/blocks_31.png");
+    ALL_TEXTURES[TEXTURE_DEFENDER_TYPE_1] = loadTextureFromImage("Blocks/blocks_24.png");
+    ALL_TEXTURES[TEXTURE_DEFENDER_TYPE_2] = loadTextureFromImage("Blocks/blocks_58.png");
 
     // load the long way, because it needs preprocessing.
     Image block_12 = LoadImage("./assets/Isometric_Tiles_Pixel_Art/Blocks/blocks_12.png");
     ImageResize(&block_12, TILE_WIDTH / 2, TILE_WIDTH / 2);
-    Texture2D projectile_1_texture = LoadTextureFromImage(block_12);
+    ALL_TEXTURES[TEXTURE_PROJECTILE_1] = LoadTextureFromImage(block_12);
     UnloadImage(block_12);
 
-    GAME_OBJECT_TEXTURES[ENEMY_SLOW] = enemy_type_1_texture;
-    GAME_OBJECT_TEXTURES[ENEMY_FAST] = enemy_type_2_texture;
-    GAME_OBJECT_TEXTURES[DEFENSE_SLOW] = machine_gun_texture;
-    GAME_OBJECT_TEXTURES[DEFENSE_FAST] = defender_type_2_texture;
-    GAME_OBJECT_TEXTURES[PROJECTILE_FAST] = projectile_1_texture;
+    GAME_OBJECT_TEXTURES[ENEMY_SLOW] = ALL_TEXTURES[TEXTURE_ENEMY_TYPE_1];
+    GAME_OBJECT_TEXTURES[ENEMY_FAST] = ALL_TEXTURES[TEXTURE_ENEMY_TYPE_2];
+    GAME_OBJECT_TEXTURES[DEFENSE_SLOW] = ALL_TEXTURES[TEXTURE_MACHINE_GUN];
+    GAME_OBJECT_TEXTURES[DEFENSE_FAST] = ALL_TEXTURES[TEXTURE_DEFENDER_TYPE_1];
+    GAME_OBJECT_TEXTURES[PROJECTILE_FAST] = ALL_TEXTURES[TEXTURE_PROJECTILE_1];
 
     // addEnemy(vec2(0, 9), ENEMY_SLOW);
     // addEnemy(vec2(0, 13), ENEMY_FAST);
@@ -542,8 +551,8 @@ int main(void){
             draw();
         EndDrawing();
     }
-
     DEBUG_PRINT("Exiting the game\n");
+
     {
         // free
         DEBUG_PRINT("freeing...\n");
@@ -555,22 +564,11 @@ int main(void){
         DEBUG_PRINT("freed projectiles\n");
         
         DEBUG_PRINT("unloading textures...\n");
-        UnloadTexture(ground_grass_texture);
-        UnloadTexture(ground_grass_treaded_texture);
-        UnloadTexture(ground_sand_texture);
-        UnloadTexture(ground_sand_treaded_texture);
-        UnloadTexture(mouseover_texture);
-        UnloadTexture(white_full_overlay_texture);
-        UnloadTexture(white_half_overlay_texture);
-        UnloadTexture(machine_gun_texture);
-        DEBUG_PRINT("unloading textures...halfway there\n");
-        
-        UnloadTexture(enemy_type_1_texture);
-        UnloadTexture(enemy_type_2_texture);
-        UnloadTexture(defender_type_1_texture);
-        UnloadTexture(defender_type_2_texture);
-        UnloadTexture(projectile_1_texture);
+        for(uint8_t i=0; i<TEXTURE_COUNT; i++) {
+            UnloadTexture(ALL_TEXTURES[i]);
+        }
         DEBUG_PRINT("unloading textures...done!\n");
+
     }
 
     CloseWindow();
