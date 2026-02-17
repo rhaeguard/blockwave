@@ -130,7 +130,7 @@ Vector2 vec2(float x, float y) {
 }
 
 // returns a random float between [0, 1]
-float getRandomFloat() {
+float get_random_float() {
     float r = (float)rand() / (float)RAND_MAX;
     return r;
 }
@@ -153,7 +153,7 @@ typedef struct Shards {
     Shard* members;
 } Shards;
 
-Vector2 shard_getPoint(float angle, Vector2 e_radius) {
+Vector2 shard_get_point(float angle, Vector2 e_radius) {
     float theta = angle * DEG2RAD;
 
     float x = e_radius.x * cosf(theta);
@@ -171,7 +171,7 @@ int compare_floats(const void *a, const void *b) {
     return 0;   // equal
 }
 
-void shards_setAngles(Shard* shard) {
+void shards_set_angles(Shard* shard) {
     int n = 3+ rand() % 5; // at most  7 angles
 
     for (uint8_t i = 0; i < n; i++) {
@@ -183,14 +183,14 @@ void shards_setAngles(Shard* shard) {
     qsort(shard->angles, shard->count, sizeof(float), compare_floats);
 }
 
-void shards_getPolygon(
+void shards_get_polygon(
     Vector2 e_radius,
     Shard* shard
 ) {
     qsort(shard->angles, shard->count, sizeof(float), compare_floats);
 
     for (uint8_t i = 0; i < shard->count; i++) {
-        Vector2 pt = shard_getPoint(shard->angles[i], e_radius);
+        Vector2 pt = shard_get_point(shard->angles[i], e_radius);
         shard->poly_points[i] = Vector2Add(pt, shard->position);
     }
 }
@@ -213,7 +213,7 @@ void shard_update(Shard* shard) {
         .y = shard->radius
     };
 
-    shards_getPolygon(e_radius, shard);
+    shards_get_polygon(e_radius, shard);
 }
 
 void shard_draw(Shard* shard) {
@@ -241,6 +241,7 @@ void shard_draw(Shard* shard) {
 }
 // Shards end
 
+// TODO: add downsizing
 void* resize(void* container_ptr, void* objects, size_t object_size) {
     SizedContainer* container = (SizedContainer*) container_ptr;
     if (container->count >= container->capacity) {
@@ -249,9 +250,6 @@ void* resize(void* container_ptr, void* objects, size_t object_size) {
         } else {
             container->capacity *= 2;
         }
-        return realloc(objects, container->capacity * object_size);
-    } else if (container->capacity > container->count * 2) {
-        container->capacity *= 0.5;
         return realloc(objects, container->capacity * object_size);
     }
     return objects;
@@ -377,6 +375,7 @@ void addDefense(Vector2 position, enum DefenseType type) {
 
 void addProjectile(float x, float y, Vector2 start_grid_coord, enum ProjectileType type) {
     projectiles.members = resize(&projectiles, projectiles.members, sizeof(Projectile));
+    DEBUG_PRINT("P: count=%d, cap=%d\n", projectiles.count, projectiles.capacity);
 
     Projectile* projectile = &(projectiles.members[projectiles.count++]); 
     projectile->type = type;
@@ -400,7 +399,7 @@ void addShard(float x, float y, float angle, float speed, float radius, float li
     shard->color = color;
     shard->radius = radius;
 
-    shards_setAngles(shard);
+    shards_set_angles(shard);
 }
 
 int checkProjectileCollision(Projectile* projectile) {
@@ -413,6 +412,23 @@ int checkProjectileCollision(Projectile* projectile) {
         if (ep.y != pp.y) { continue; }
 
         bool collison_detected = (ep.x + 1 > pp.x) && (ep.x <= st.x);
+        if (collison_detected) {
+            return i;
+        }
+    }
+
+    return -1;
+}
+
+int checkEnemyDefenseCollision(Defense* defense) {
+    Vector2 dp = defense->current_grid_coord;
+
+    for (int i=0; i < enemies.count; i++) {
+        Enemy* enemy = &(enemies.members[i]); 
+        Vector2 ep = enemy->current_grid_coord;
+        if (ep.y != dp.y) { continue; }
+
+        bool collison_detected = (ep.x + 1 > dp.x);
         if (collison_detected) {
             return i;
         }
@@ -476,6 +492,34 @@ void update() {
     remove_count = 0;
     for (int i=0; i < defenses.count; i++) {
         Defense* defense = &(defenses.members[i]);
+
+        int collided_object_pos = checkEnemyDefenseCollision(defense);
+
+        if (collided_object_pos != -1) {
+            defense->life = 0;
+            remove_count += 1;
+
+            Vector2 explosion_center = {
+                .x = defense->current_grid_coord.x + 0.5,
+                .y = defense->current_grid_coord.y - 0.5
+            };
+
+            Vector2 screen_coords = toScreenCoords(explosion_center);
+
+            for (float f=0.0; f < 100.0; f += 0.5) {
+                addShard(
+                    screen_coords.x,
+                    screen_coords.y,
+                    3.6*f, 
+                    0.008 * screen_width * get_random_float(),
+                    (screen_width / 256.0) * (get_random_float() / 2), 
+                    get_random_float(), 
+                    BLUE
+                );
+            }
+            continue;
+        }
+
         // TODO: projectile generation should be based on charging a certain bar 
         // which would be higher/lower depending on the effectiveness of the projectile
         double time_passed = GetTime() - defense->last_attacked;
@@ -502,16 +546,23 @@ void update() {
             projectile->life = 0;
             remove_count++;
 
-            Vector2 screen_coords = toScreenCoords(projectile->current_grid_coord);
+            Enemy* hit_enemy = &(enemies.members[collided_object_pos]);
+            
+            Vector2 explosion_center = {
+                .x = hit_enemy->current_grid_coord.x + 1,
+                .y = hit_enemy->current_grid_coord.y - 0.5
+            };
+
+            Vector2 screen_coords = toScreenCoords(explosion_center);
 
             for (float f=0.0; f < 100.0; f += 0.5) {
                 addShard(
                     screen_coords.x,
                     screen_coords.y,
                     3.6*f, 
-                    0.008 * screen_width * getRandomFloat(), //* random 
-                    (screen_width / 256.0) * (getRandomFloat() / 2), 
-                    getRandomFloat(), 
+                    0.008 * screen_width * get_random_float(),
+                    (screen_width / 256.0) * (get_random_float() / 2), 
+                    get_random_float(), 
                     RED
                 );
             }
@@ -519,7 +570,27 @@ void update() {
         }
 
         if (collided_object_pos != -1) {
-            (&enemies.members[collided_object_pos])->life -= 40;
+            Enemy* enemy = (&enemies.members[collided_object_pos]);
+            enemy->life -= 40;
+            Vector2 screen_coords = {
+                .x=enemy->current_screen_coord.x,
+                .y=enemy->current_screen_coord.y
+            };
+            screen_coords.y -= TILE_HEIGHT;
+            screen_coords.x += TILE_WIDTH/2.0 + TILE_WIDTH/4.0;
+            screen_coords.y += TILE_WIDTH/2.0 + TILE_WIDTH/4.0;
+
+            for (float f=0.0; f < 100.0; f += 0.5) {
+                addShard(
+                    screen_coords.x,
+                    screen_coords.y,
+                    3.6*f, 
+                    0.008 * screen_width * get_random_float(), //* random 
+                    (screen_width / 256.0) * (get_random_float() / 2), 
+                    get_random_float(), 
+                    RED
+                );
+            }
         }
     }
 
@@ -629,6 +700,15 @@ void draw() {
                 Vector2 screen_coords = enemy->current_screen_coord;
                 screen_coords.y -= TILE_HEIGHT;
                 DrawTextureV(texture, screen_coords, WHITE);
+
+                // DrawCircleV(vec2(screen_coords.x + TILE_WIDTH/2.0 + TILE_WIDTH/4.0, screen_coords.y + TILE_WIDTH/2.0 + TILE_WIDTH/4.0), 5.0, RED);
+                // DrawRectangleLines(
+                //     (int )(screen_coords.x), 
+                //     (int) (screen_coords.y), 
+                //     texture.width, 
+                //     texture.height, 
+                //     BLACK
+                // );
             } else if (smallest == 3) {
                 pi++;
 
@@ -636,6 +716,22 @@ void draw() {
                 Vector2 screen_coords = toScreenCoords(projectile->current_grid_coord);
                 screen_coords.y -= TILE_HEIGHT;
                 DrawTextureV(texture, vec2(screen_coords.x + TILE_WIDTH/4.0, screen_coords.y + TILE_WIDTH/4.0), WHITE);
+                // DrawRectangleLines(
+                //     (int )(screen_coords.x + TILE_WIDTH/4.0), 
+                //     (int) (screen_coords.y + TILE_WIDTH/4.0), 
+                //     texture.width, 
+                //     texture.height, 
+                //     BLACK
+                // );
+                // // [aaaa.aa]; [aaaa.aa]
+                // char buf[21];
+                // sprintf( buf, "[%.2f]; [%.2f]", (projectile->current_grid_coord.x), (projectile->current_grid_coord.y));
+                // DrawText(buf, 
+                //     (int )(screen_coords.x + TILE_WIDTH/4.0), 
+                //     (int) (screen_coords.y + TILE_WIDTH/4.0), 
+                //     15, 
+                //     BLACK
+                // );
             } else {
                 // what??
             }
