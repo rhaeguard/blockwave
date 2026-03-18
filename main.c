@@ -633,14 +633,16 @@ void draw() {
         for (int x = 0; x < GRID_WIDTH; x++){
             Vector2 grid_coords = vec2(x, y);
             Vector2 screen_coords = toScreenCoords(grid_coords);
+            
+            DRAW_GRID_BOUNDING_BOX {
+                float xx = screen_coords.x;
+                float yy = screen_coords.y;
+                if (xx < minx) {minx = xx;}
+                if (xx > maxx) {maxx = xx;}
 
-            float xx = screen_coords.x;
-            float yy = screen_coords.y;
-            if (xx < minx) {minx = xx;}
-            if (xx > maxx) {maxx = xx;}
-
-            if (yy < miny) {miny = yy;}
-            if (yy > maxy) {maxy = yy;}
+                if (yy < miny) {miny = yy;}
+                if (yy > maxy) {maxy = yy;}
+            }
 
             Texture2D* ground_texture = &ALL_TEXTURES[TEXTURE_GROUND_GRASS];
             Texture2D* treaded_texture = &ALL_TEXTURES[TEXTURE_GROUND_GRASS_TREADED];
@@ -652,23 +654,20 @@ void draw() {
                 treaded_texture = &ALL_TEXTURES[TEXTURE_GROUND_SAND_TREADED];
             }
 
-            if ((int) mouse_position.y == y) {
-                if ((int) mouse_position.x == x && (x > 5 && x < GRID_WIDTH - 2)) {
+            if (enemy_positions[y] > x) {
+                DrawTextureV(*treaded_texture, screen_coords, WHITE);
+            } else {
+                DrawTextureV(*ground_texture, screen_coords, WHITE);
+            }
+
+            int mpx = mouse_position.x;
+            int mpy = mouse_position.y;
+
+            if (mpy == y && mpx >= 0 && mpx < GRID_WIDTH) {
+                if (mpx == x && (x > 5 && x < GRID_WIDTH - 2)) {
                     DrawTextureV(ALL_TEXTURES[TEXTURE_MOUSEOVER], screen_coords, WHITE);
-                } else {
-                    if (enemy_positions[y] > x) {
-                        DrawTextureV(*treaded_texture, screen_coords, WHITE);
-                    } else {
-                        DrawTextureV(*ground_texture, screen_coords, WHITE);
-                    }
                 }
                 DrawTextureV(ALL_TEXTURES[TEXTURE_WHITE_FULL_OVERLAY], screen_coords, WHITE);
-            } else {
-                if (enemy_positions[y] > x) {
-                    DrawTextureV(*treaded_texture, screen_coords, WHITE);
-                } else {
-                    DrawTextureV(*ground_texture, screen_coords, WHITE);
-                }
             }
         }
     }
