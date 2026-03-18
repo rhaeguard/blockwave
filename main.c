@@ -299,8 +299,8 @@ Vector2 toGridCoords(Vector2 screen) {
     float y = (screen.y / (TILE_HEIGHT / 2.0) -(screen.x / (TILE_WIDTH / 2.0))) / 2;
 
     // snap to grid
-    x = ceilf(x);
-    y = ceilf(y);
+    x = floorf(x);
+    y = floorf(y);
 
     return vec2(x, y);
 }
