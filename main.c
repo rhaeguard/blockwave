@@ -1,4 +1,5 @@
 #include <inttypes.h>
+#include <limits.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <math.h>
@@ -6,11 +7,15 @@
 #include <stdint.h>
 #include "raylib.h"
 #include "raymath.h"
+#include <time.h>
 
-#define GRID_SIZE 30
+// #define GRID_SIZE 15
+#define GRID_WIDTH 30
+#define GRID_HEIGHT 10
 
 #define DEBUG 1
 #define DEBUG_PRINT if (DEBUG) printf
+#define DRAW_GRID_BOUNDING_BOX if (false)
 
 #define COMPARE_FUNC(T) \
 int compare##T(const void* a, const void* b) {  \
@@ -25,7 +30,8 @@ int compare##T(const void* a, const void* b) {  \
 
 float TILE_WIDTH = 64;
 float TILE_HEIGHT = 32;
-float enemy_positions[GRID_SIZE] = {0.0};
+// TODO: might need a better data structure
+float enemy_positions[GRID_HEIGHT] = {0.0};
 float VERTICAL_OFFSET;
 float HORIZONTAL_OFFSET;
 Vector2 DUMMY_REFERENCE = {.x = 99999, .y = 99999};
@@ -276,7 +282,7 @@ Vector2 toScreenCoords(Vector2 coord) {
     float y = (coord.x + coord.y) * (TILE_HEIGHT / 2.0);
 
     // some translation
-    x -= TILE_WIDTH / 2.0;
+    // x -= TILE_WIDTH / 2.0;
     x += HORIZONTAL_OFFSET;
     y += VERTICAL_OFFSET;
 
@@ -356,7 +362,7 @@ void addEnemy(Vector2 grid_coord, enum EnemyType type) {
 
     // movement related parameters
     enemy->start_grid_coord = vec2(0, grid_coord.y);
-    enemy->target_grid_coord = vec2(GRID_SIZE-1, grid_coord.y);
+    enemy->target_grid_coord = vec2(GRID_WIDTH-1, grid_coord.y);
     enemy->move_pct = 0.0;
     enemy->life = 100; // will be different by the enemy type
 
@@ -443,8 +449,8 @@ void grabUserInput() {
     if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT)) {
         int mpx = mouse_position.x;
         int mpy = mouse_position.y;
-        if (mpx >= 0 && mpx < GRID_SIZE && mpy >= 0 && mpy < GRID_SIZE) {
-            if (mpx > 5 && mpx < GRID_SIZE - 2) {
+        if (mpx >= 0 && mpx < GRID_WIDTH && mpy >= 0 && mpy < GRID_HEIGHT) {
+            if (mpx > 5 && mpx < GRID_WIDTH - 2) {
                 addDefense(mouse_position, DEFENSE_SLOW);
             }
         }
@@ -619,15 +625,27 @@ void draw() {
     }
 
     // draw the grid
-    for (int y = 0; y < GRID_SIZE; y++){
-        for (int x = 0; x < GRID_SIZE; x++){
+    float minx = INT_MAX; 
+    float miny = INT_MAX;
+    float maxx = INT_MIN;
+    float maxy = INT_MIN;
+    for (int y = 0; y < GRID_HEIGHT; y++){
+        for (int x = 0; x < GRID_WIDTH; x++){
             Vector2 grid_coords = vec2(x, y);
             Vector2 screen_coords = toScreenCoords(grid_coords);
+
+            float xx = screen_coords.x;
+            float yy = screen_coords.y;
+            if (xx < minx) {minx = xx;}
+            if (xx > maxx) {maxx = xx;}
+
+            if (yy < miny) {miny = yy;}
+            if (yy > maxy) {maxy = yy;}
 
             Texture2D* ground_texture = &ALL_TEXTURES[TEXTURE_GROUND_GRASS];
             Texture2D* treaded_texture = &ALL_TEXTURES[TEXTURE_GROUND_GRASS_TREADED];
 
-            if (x >= GRID_SIZE - 2) {
+            if (x >= GRID_WIDTH - 2) {
                 ground_texture = &ALL_TEXTURES[TEXTURE_GROUND_PAVEMENT];
             } else if (x <= 5) {
                 ground_texture = &ALL_TEXTURES[TEXTURE_GROUND_SAND];
@@ -635,7 +653,7 @@ void draw() {
             }
 
             if ((int) mouse_position.y == y) {
-                if ((int) mouse_position.x == x && (x > 5 && x < GRID_SIZE - 2)) {
+                if ((int) mouse_position.x == x && (x > 5 && x < GRID_WIDTH - 2)) {
                     DrawTextureV(ALL_TEXTURES[TEXTURE_MOUSEOVER], screen_coords, WHITE);
                 } else {
                     if (enemy_positions[y] > x) {
@@ -654,6 +672,10 @@ void draw() {
             }
         }
     }
+
+    // grid bounding box
+    Rectangle r = {.x=minx, .y=miny, .width=maxx-minx + TILE_WIDTH, .height=maxy-miny+TILE_HEIGHT*2};
+    DRAW_GRID_BOUNDING_BOX DrawRectangleLinesEx(r, 2.0, BLUE);
 
     {
         // draw the chars and objects
@@ -768,6 +790,7 @@ int main(void){
     init();
 
     SetConfigFlags(FLAG_VSYNC_HINT);
+    // SetConfigFlags(FLAG_WINDOW_RESIZABLE);
     SetConfigFlags(FLAG_FULLSCREEN_MODE);
    
     SetTargetFPS(30);
@@ -780,8 +803,10 @@ int main(void){
     TILE_HEIGHT = (32.0 * screen_height) / 1440;
     TILE_WIDTH = 2 * TILE_HEIGHT;
 
-    HORIZONTAL_OFFSET = screen_width / 2.0;
-    VERTICAL_OFFSET = ((GRID_SIZE + GRID_SIZE) * (TILE_HEIGHT / 2.0)) / 4.0;
+    float iso_width = (GRID_HEIGHT + GRID_WIDTH) * (TILE_WIDTH / 2.0);
+    float iso_height = (GRID_HEIGHT + GRID_WIDTH) * (TILE_HEIGHT / 2);
+    HORIZONTAL_OFFSET = (screen_width - iso_width) / 2.0 + GRID_HEIGHT * TILE_WIDTH / 2.0;
+    VERTICAL_OFFSET = (screen_height - iso_height) / 2.0;
 
     ALL_TEXTURES[TEXTURE_GROUND_GRASS] = loadTextureFromImage("Blocks/blocks_1.png");
     ALL_TEXTURES[TEXTURE_GROUND_GRASS_TREADED] = loadTextureFromImage("Blocks/blocks_1_treaded.png");
@@ -809,9 +834,11 @@ int main(void){
     GAME_OBJECT_TEXTURES[DEFENSE_FAST] = ALL_TEXTURES[TEXTURE_DEFENDER_TYPE_1];
     GAME_OBJECT_TEXTURES[PROJECTILE_FAST] = ALL_TEXTURES[TEXTURE_PROJECTILE_1];
 
-    addEnemy(vec2(0, 9), ENEMY_SLOW);
-    addEnemy(vec2(0, 13), ENEMY_FAST);
-    addEnemy(vec2(0, 18), ENEMY_FAST);
+    srand(193397);
+    for (int i=0; i < 3; i++) {
+        int y = rand() % GRID_HEIGHT;
+        addEnemy(vec2(0, y), ENEMY_SLOW);
+    }
 
     while (!WindowShouldClose())
     {
