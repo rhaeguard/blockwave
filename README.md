@@ -9,7 +9,7 @@ progress so far
 ## Todo
 
 - [ ] Ability to play a very simple game from start to finish. Nothing fancy, just a limited number of enemies coming at you and you defending. 
-- [ ] Defenders shooting at the enemy
+- [x] Defenders shooting at the enemy
 - [ ] Have different type of game objects (different defenders, different enemies, boxes with various capabilities)
     - [ ] cannons, guns
     - [ ] land mines

@@ -248,7 +248,7 @@ void* resize(void* container_ptr, void* objects, size_t object_size) {
         if (container->capacity == 0) {
             container->capacity = 256;
         } else {
-            container->capacity *= 2;
+            container->capacity *= 1.5;
         }
         return realloc(objects, container->capacity * object_size);
     }
@@ -471,8 +471,7 @@ void update() {
 
         speed *=1.3;
 
-        float dt = delta_time;
-        enemy->move_pct += speed * dt;
+        enemy->move_pct += speed * delta_time;
         enemy->move_pct = Clamp(enemy->move_pct, 0, 1);
         Vector2 interpolated_grid_coord = Vector2Lerp(
             enemy->start_grid_coord, 
@@ -542,16 +541,22 @@ void update() {
 
         int collided_object_pos = checkProjectileCollision(projectile);
         
+        // went out of bounds OR hit an enemy
         if (projectile->current_grid_coord.x < 0 || collided_object_pos != -1) {
             projectile->life = 0;
             remove_count++;
-
-            Enemy* hit_enemy = &(enemies.members[collided_object_pos]);
             
-            Vector2 explosion_center = {
-                .x = hit_enemy->current_grid_coord.x + 1,
-                .y = hit_enemy->current_grid_coord.y - 0.5
-            };
+            Vector2 explosion_center;
+
+            // hit an enemy
+            if (collided_object_pos != -1) {
+                Enemy* hit_enemy = &(enemies.members[collided_object_pos]);
+                explosion_center.x = hit_enemy->current_grid_coord.x + 1;
+                explosion_center.y = hit_enemy->current_grid_coord.y - 0.5;
+            } else {
+                explosion_center.x = 0;
+                explosion_center.y = projectile->current_grid_coord.y;
+            }
 
             Vector2 screen_coords = toScreenCoords(explosion_center);
 
@@ -569,6 +574,7 @@ void update() {
             DEBUG_PRINT("added shards [cap:%d, count:%d]\n", shards.capacity, shards.count);
         }
 
+        // collided with enemy, update enemy health
         if (collided_object_pos != -1) {
             Enemy* enemy = (&enemies.members[collided_object_pos]);
             enemy->life -= 40;
@@ -579,18 +585,6 @@ void update() {
             screen_coords.y -= TILE_HEIGHT;
             screen_coords.x += TILE_WIDTH/2.0 + TILE_WIDTH/4.0;
             screen_coords.y += TILE_WIDTH/2.0 + TILE_WIDTH/4.0;
-
-            for (float f=0.0; f < 100.0; f += 0.5) {
-                addShard(
-                    screen_coords.x,
-                    screen_coords.y,
-                    3.6*f, 
-                    0.008 * screen_width * get_random_float(), //* random 
-                    (screen_width / 256.0) * (get_random_float() / 2), 
-                    get_random_float(), 
-                    RED
-                );
-            }
         }
     }
 
@@ -774,7 +768,7 @@ int main(void){
     init();
 
     SetConfigFlags(FLAG_VSYNC_HINT);
-    // SetConfigFlags(FLAG_FULLSCREEN_MODE);
+    SetConfigFlags(FLAG_FULLSCREEN_MODE);
    
     SetTargetFPS(30);
     InitWindow(0, 0, "blockwave");
@@ -829,8 +823,6 @@ int main(void){
             draw();
         EndDrawing();
     }
-    DEBUG_PRINT("Exiting the game\n");
-
     {
         // free
         DEBUG_PRINT("freeing...\n");
