@@ -10,7 +10,6 @@
 #include "raymath.h"
 #include <time.h>
 
-// #define GRID_SIZE 15
 #define GRID_WIDTH 30
 #define GRID_HEIGHT 10
 
@@ -374,7 +373,7 @@ int compare_shards(const void *a, const void *b) {
   return 0;
 }
 
-uint8_t isometric_view_compare(
+enum GameObjectType isometric_view_compare(
     Defense* d,
     Enemy* e,
     Projectile* p
@@ -387,17 +386,17 @@ uint8_t isometric_view_compare(
     if (defenseIsBehind) {
         bool defenseIsBehindAll = isometric_view_compare_vec2(&defense_grid_coords, &projectile_grid_coords) == -1;
         if (defenseIsBehindAll) {
-            return 1;
+            return GO_DEFENSE;
         }
     } else {
         // enemy is behind the defense.
         bool enemyIsBehindAll = isometric_view_compare_vec2(&enemy_grid_coords, &projectile_grid_coords) == -1;
         if (enemyIsBehindAll) {
-            return 2;
+            return GO_ENEMY;
         }
     }
 
-    return 3;
+    return GO_PROJECTILE;
 }
 
 void add_enemy(Vector2 grid_coord, enum EnemyType type) {
@@ -548,6 +547,13 @@ void process_user_input() {
 
 void update() {
     float delta_time = GetFrameTime();
+
+    {// keep enemy count consistent
+        for (int i=0; i < 3-enemies.count; i++) {
+            int y = rand() % GRID_HEIGHT;
+            add_enemy(vec2(0, y), ENEMY_SLOW);
+        }
+    }
 
     // update enemies
     int remove_count = 0;
@@ -772,7 +778,7 @@ void draw_game_elements() {
     }
 
     // grid bounding box
-    Rectangle r = {.x=minx, .y=miny, .width=maxx-minx + TILE_WIDTH, .height=maxy-miny+TILE_HEIGHT*2};
+    Rectangle r = rect(minx,miny,maxx-minx+TILE_WIDTH,maxy-miny+TILE_HEIGHT*2);
     DRAW_GRID_BOUNDING_BOX DrawRectangleLinesEx(r, 2.0, BLUE);
 
     {
@@ -789,9 +795,9 @@ void draw_game_elements() {
             Enemy* enemy = ei < enemies.count ? &enemies.members[ei] : NULL;
             Projectile* projectile = pi < projectiles.count ? &projectiles.members[pi] : NULL;
             
-            uint8_t smallest = isometric_view_compare(defense, enemy, projectile);
+            enum GameObjectType smallest = isometric_view_compare(defense, enemy, projectile);
 
-            if (smallest == 1) {
+            if (smallest == GO_DEFENSE) {
                 di++;
                 
                 Vector2 screen_coords = to_screen_coords(defense->current_grid_coord);
@@ -807,7 +813,7 @@ void draw_game_elements() {
                 BeginScissorMode((int) screen_coords.x, (int) ceil(screen_coords.y + 2 * TILE_HEIGHT * (1 - pct)), TILE_WIDTH, 2 * TILE_HEIGHT * pct);
                     DrawTextureV(ALL_TEXTURES[TEXTURE_WHITE_HALF_OVERLAY], screen_coords, WHITE);
                 EndScissorMode();
-            } else if (smallest == 2) {
+            } else if (smallest == GO_ENEMY) {
                 ei++;
 
                 Texture2D texture = GAME_OBJECT_TEXTURES[enemy->type];
@@ -815,15 +821,13 @@ void draw_game_elements() {
                 Vector2 screen_coords = enemy->current_screen_coord;
                 screen_coords.y -= TILE_HEIGHT;
                 DrawTextureV(texture, screen_coords, WHITE);
-            } else if (smallest == 3) {
+            } else if (smallest == GO_PROJECTILE) {
                 pi++;
 
                 Texture2D texture = GAME_OBJECT_TEXTURES[projectile->type];
                 Vector2 screen_coords = to_screen_coords(projectile->current_grid_coord);
                 screen_coords.y -= TILE_HEIGHT;
                 DrawTextureV(texture, vec2(screen_coords.x + TILE_WIDTH/4.0, screen_coords.y + TILE_WIDTH/4.0), WHITE);
-            } else {
-                // what??
             }
         }
     }
@@ -1013,14 +1017,6 @@ int main(void){
     GAME_OBJECT_TEXTURES[PROJECTILE_TYPE_1] = ALL_TEXTURES[TEXTURE_PROJECTILE_1];
     GAME_OBJECT_TEXTURES[PROJECTILE_TYPE_2] = ALL_TEXTURES[TEXTURE_PROJECTILE_2];
     GAME_OBJECT_TEXTURES[PROJECTILE_TYPE_3] = ALL_TEXTURES[TEXTURE_PROJECTILE_3];
-
-    {// random enemy generator
-        srand(193397);
-        for (int i=0; i < 3; i++) {
-            int y = rand() % GRID_HEIGHT;
-            add_enemy(vec2(0, y), ENEMY_SLOW);
-        }
-    }
 
     init_hud();
 
