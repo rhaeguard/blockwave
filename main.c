@@ -25,7 +25,7 @@ int compare##T(const void* a, const void* b) {  \
     if (o2->life <= 0) return -1;               \
     Vector2 p1 = o1->current_grid_coord;        \
     Vector2 p2 = o2->current_grid_coord;        \
-    return isometricViewCompareVec2(&p1, &p2);  \
+    return isometric_view_compare_vec2(&p1, &p2);  \
 }
 
 float TILE_WIDTH = 64;
@@ -276,13 +276,12 @@ Texture2D GAME_OBJECT_TEXTURES[10];
 
 // This function returns the screen coordinates
 // given the grid coordinates
-Vector2 toScreenCoords(Vector2 coord) {
+Vector2 to_screen_coords(Vector2 grid_coords) {
     // calculate screen coordinates
-    float x = (coord.x - coord.y) * (TILE_WIDTH / 2.0);
-    float y = (coord.x + coord.y) * (TILE_HEIGHT / 2.0);
+    float x = (grid_coords.x - grid_coords.y) * (TILE_WIDTH / 2.0);
+    float y = (grid_coords.x + grid_coords.y) * (TILE_HEIGHT / 2.0);
 
     // some translation
-    // x -= TILE_WIDTH / 2.0;
     x += HORIZONTAL_OFFSET;
     y += VERTICAL_OFFSET;
 
@@ -291,7 +290,7 @@ Vector2 toScreenCoords(Vector2 coord) {
 
 // This function returns the grid coordinates
 // given the screen coordinates
-Vector2 toGridCoords(Vector2 screen) {
+Vector2 to_grid_coords(Vector2 screen) {
     screen.x -= HORIZONTAL_OFFSET;
     screen.y -= VERTICAL_OFFSET;
 
@@ -305,7 +304,7 @@ Vector2 toGridCoords(Vector2 screen) {
     return vec2(x, y);
 }
 
-int isometricViewCompareVec2(Vector2* p1, Vector2* p2) {
+int isometric_view_compare_vec2(Vector2* p1, Vector2* p2) {
     if (p1->y < p2->y) {
         return -1;
     } else if (p1->y > p2->y) {
@@ -318,7 +317,7 @@ COMPARE_FUNC(Enemy);
 COMPARE_FUNC(Defense);
 COMPARE_FUNC(Projectile);
 
-int compareShard(const void *a, const void *b) {
+int compare_shards(const void *a, const void *b) {
   Shard *o1 = ((Shard *)a);
   Shard *o2 = ((Shard *)b);
   if (o1->life <= 0)
@@ -328,7 +327,7 @@ int compareShard(const void *a, const void *b) {
   return 0;
 }
 
-uint8_t isometricViewCompare(
+uint8_t isometric_view_compare(
     Defense* d,
     Enemy* e,
     Projectile* p
@@ -337,15 +336,15 @@ uint8_t isometricViewCompare(
     Vector2 enemy_grid_coords = e == NULL ? DUMMY_REFERENCE : e->current_grid_coord;
     Vector2 projectile_grid_coords = p == NULL ? DUMMY_REFERENCE : p->current_grid_coord;
 
-    bool defenseIsBehind = isometricViewCompareVec2(&defense_grid_coords, &enemy_grid_coords) == -1;
+    bool defenseIsBehind = isometric_view_compare_vec2(&defense_grid_coords, &enemy_grid_coords) == -1;
     if (defenseIsBehind) {
-        bool defenseIsBehindAll = isometricViewCompareVec2(&defense_grid_coords, &projectile_grid_coords) == -1;
+        bool defenseIsBehindAll = isometric_view_compare_vec2(&defense_grid_coords, &projectile_grid_coords) == -1;
         if (defenseIsBehindAll) {
             return 1;
         }
     } else {
         // enemy is behind the defense.
-        bool enemyIsBehindAll = isometricViewCompareVec2(&enemy_grid_coords, &projectile_grid_coords) == -1;
+        bool enemyIsBehindAll = isometric_view_compare_vec2(&enemy_grid_coords, &projectile_grid_coords) == -1;
         if (enemyIsBehindAll) {
             return 2;
         }
@@ -354,7 +353,7 @@ uint8_t isometricViewCompare(
     return 3;
 }
 
-void addEnemy(Vector2 grid_coord, enum EnemyType type) {
+void add_enemy(Vector2 grid_coord, enum EnemyType type) {
     enemies.members = resize(&enemies, enemies.members, sizeof(Enemy));
 
     Enemy* enemy = &(enemies.members[enemies.count++]); 
@@ -369,7 +368,7 @@ void addEnemy(Vector2 grid_coord, enum EnemyType type) {
     enemy->current_grid_coord = grid_coord;
 }
 
-void addDefense(Vector2 position, enum DefenseType type) {
+void add_defense(Vector2 position, enum DefenseType type) {
     defenses.members = resize(&defenses, defenses.members, sizeof(Defense));
 
     Defense* defense = &(defenses.members[defenses.count++]); 
@@ -379,7 +378,7 @@ void addDefense(Vector2 position, enum DefenseType type) {
     defense->life = 100;
 }
 
-void addProjectile(float x, float y, Vector2 start_grid_coord, enum ProjectileType type) {
+void add_projectile(float x, float y, Vector2 start_grid_coord, enum ProjectileType type) {
     projectiles.members = resize(&projectiles, projectiles.members, sizeof(Projectile));
     DEBUG_PRINT("P: count=%d, cap=%d\n", projectiles.count, projectiles.capacity);
 
@@ -390,7 +389,7 @@ void addProjectile(float x, float y, Vector2 start_grid_coord, enum ProjectileTy
     projectile->life = 100;
 }
 
-void addShard(float x, float y, float angle, float speed, float radius, float life, Color color) {
+void add_shard(float x, float y, float angle, float speed, float radius, float life, Color color) {
     shards.members = resize(&shards, shards.members, sizeof(Shard));
 
     float angle_in_radians = angle * DEG2RAD;
@@ -408,7 +407,7 @@ void addShard(float x, float y, float angle, float speed, float radius, float li
     shards_set_angles(shard);
 }
 
-int checkProjectileCollision(Projectile* projectile) {
+int check_projectile_collision(Projectile* projectile) {
     Vector2 pp = projectile->current_grid_coord;
     Vector2 st = projectile->start_grid_coord;
 
@@ -426,7 +425,7 @@ int checkProjectileCollision(Projectile* projectile) {
     return -1;
 }
 
-int checkEnemyDefenseCollision(Defense* defense) {
+int check_enemy_defense_collision(Defense* defense) {
     Vector2 dp = defense->current_grid_coord;
 
     for (int i=0; i < enemies.count; i++) {
@@ -443,15 +442,15 @@ int checkEnemyDefenseCollision(Defense* defense) {
     return -1;
 }
 
-void grabUserInput() {
-    mouse_position = toGridCoords(GetMousePosition());
+void grab_user_input() {
+    mouse_position = to_grid_coords(GetMousePosition());
 
     if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT)) {
         int mpx = mouse_position.x;
         int mpy = mouse_position.y;
         if (mpx >= 0 && mpx < GRID_WIDTH && mpy >= 0 && mpy < GRID_HEIGHT) {
             if (mpx > 5 && mpx < GRID_WIDTH - 2) {
-                addDefense(mouse_position, DEFENSE_SLOW);
+                add_defense(mouse_position, DEFENSE_SLOW);
             }
         }
     }
@@ -484,7 +483,7 @@ void update() {
             enemy->target_grid_coord, 
             enemy->move_pct
         );
-        enemy->current_screen_coord = toScreenCoords(interpolated_grid_coord);
+        enemy->current_screen_coord = to_screen_coords(interpolated_grid_coord);
         // this is necessary for depth sorting
         enemy->current_grid_coord.x = roundf(interpolated_grid_coord.x);
         enemy->current_grid_coord.y = roundf(interpolated_grid_coord.y);
@@ -498,7 +497,7 @@ void update() {
     for (int i=0; i < defenses.count; i++) {
         Defense* defense = &(defenses.members[i]);
 
-        int collided_object_pos = checkEnemyDefenseCollision(defense);
+        int collided_object_pos = check_enemy_defense_collision(defense);
 
         if (collided_object_pos != -1) {
             defense->life = 0;
@@ -509,10 +508,10 @@ void update() {
                 .y = defense->current_grid_coord.y - 0.5
             };
 
-            Vector2 screen_coords = toScreenCoords(explosion_center);
+            Vector2 screen_coords = to_screen_coords(explosion_center);
 
             for (float f=0.0; f < 100.0; f += 0.5) {
-                addShard(
+                add_shard(
                     screen_coords.x,
                     screen_coords.y,
                     3.6*f, 
@@ -531,7 +530,7 @@ void update() {
         if (time_passed < 4.0) { continue; }
 
         Vector2 p = defense->current_grid_coord;
-        addProjectile(p.x-1, p.y, p, PROJECTILE_FAST);
+        add_projectile(p.x-1, p.y, p, PROJECTILE_FAST);
         defense->last_attacked = GetTime();
     }
 
@@ -545,7 +544,7 @@ void update() {
         // TODO: projectiles will move with different speeds
         projectile->current_grid_coord.x -= 2 * delta_time;
 
-        int collided_object_pos = checkProjectileCollision(projectile);
+        int collided_object_pos = check_projectile_collision(projectile);
         
         // went out of bounds OR hit an enemy
         if (projectile->current_grid_coord.x < 0 || collided_object_pos != -1) {
@@ -564,10 +563,10 @@ void update() {
                 explosion_center.y = projectile->current_grid_coord.y;
             }
 
-            Vector2 screen_coords = toScreenCoords(explosion_center);
+            Vector2 screen_coords = to_screen_coords(explosion_center);
 
             for (float f=0.0; f < 100.0; f += 0.5) {
-                addShard(
+                add_shard(
                     screen_coords.x,
                     screen_coords.y,
                     3.6*f, 
@@ -607,11 +606,11 @@ void update() {
         }
     }
 
-    qsort(shards.members, shards.count, sizeof(Shard), compareShard);
+    qsort(shards.members, shards.count, sizeof(Shard), compare_shards);
     shards.count -= remove_count;
 }
 
-void draw() {
+void draw_game_elements() {
     for (int i=0; i < enemies.count; i++) {
         Enemy* enemy = &(enemies.members[i]);
 
@@ -632,7 +631,7 @@ void draw() {
     for (int y = 0; y < GRID_HEIGHT; y++){
         for (int x = 0; x < GRID_WIDTH; x++){
             Vector2 grid_coords = vec2(x, y);
-            Vector2 screen_coords = toScreenCoords(grid_coords);
+            Vector2 screen_coords = to_screen_coords(grid_coords);
             
             DRAW_GRID_BOUNDING_BOX {
                 float xx = screen_coords.x;
@@ -690,12 +689,12 @@ void draw() {
             Enemy* enemy = ei < enemies.count ? &enemies.members[ei] : NULL;
             Projectile* projectile = pi < projectiles.count ? &projectiles.members[pi] : NULL;
             
-            uint8_t smallest = isometricViewCompare(defense, enemy, projectile);
+            uint8_t smallest = isometric_view_compare(defense, enemy, projectile);
 
             if (smallest == 1) {
                 di++;
                 
-                Vector2 screen_coords = toScreenCoords(defense->current_grid_coord);
+                Vector2 screen_coords = to_screen_coords(defense->current_grid_coord);
                 screen_coords.y -= TILE_HEIGHT;
                 
                 Texture2D texture = GAME_OBJECT_TEXTURES[defense->type];
@@ -728,7 +727,7 @@ void draw() {
                 pi++;
 
                 Texture2D texture = GAME_OBJECT_TEXTURES[projectile->type];
-                Vector2 screen_coords = toScreenCoords(projectile->current_grid_coord);
+                Vector2 screen_coords = to_screen_coords(projectile->current_grid_coord);
                 screen_coords.y -= TILE_HEIGHT;
                 DrawTextureV(texture, vec2(screen_coords.x + TILE_WIDTH/4.0, screen_coords.y + TILE_WIDTH/4.0), WHITE);
                 // DrawRectangleLines(
@@ -762,6 +761,10 @@ void draw() {
     }
 }
 
+void draw_hud() {
+
+}
+
 Texture2D loadTextureFromImage(char* filename) {
     char path[256];
     sprintf(path, "./assets/Isometric_Tiles_Pixel_Art/%s", filename);
@@ -791,6 +794,7 @@ int main(void){
     SetConfigFlags(FLAG_VSYNC_HINT);
     // SetConfigFlags(FLAG_WINDOW_RESIZABLE);
     SetConfigFlags(FLAG_FULLSCREEN_MODE);
+    SetTraceLogLevel(LOG_NONE);
    
     SetTargetFPS(30);
     InitWindow(0, 0, "blockwave");
@@ -833,20 +837,23 @@ int main(void){
     GAME_OBJECT_TEXTURES[DEFENSE_FAST] = ALL_TEXTURES[TEXTURE_DEFENDER_TYPE_1];
     GAME_OBJECT_TEXTURES[PROJECTILE_FAST] = ALL_TEXTURES[TEXTURE_PROJECTILE_1];
 
-    srand(193397);
-    for (int i=0; i < 3; i++) {
-        int y = rand() % GRID_HEIGHT;
-        addEnemy(vec2(0, y), ENEMY_SLOW);
+    {// random enemy generator
+        srand(193397);
+        for (int i=0; i < 3; i++) {
+            int y = rand() % GRID_HEIGHT;
+            add_enemy(vec2(0, y), ENEMY_SLOW);
+        }
     }
 
     while (!WindowShouldClose())
     {
-        grabUserInput();
+        grab_user_input();
         update();
 
         BeginDrawing();
             ClearBackground(RAYWHITE);
-            draw();
+            draw_game_elements();
+            draw_hud();
         EndDrawing();
     }
     {
