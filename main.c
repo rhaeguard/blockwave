@@ -550,8 +550,24 @@ void update() {
 
     {// keep enemy count consistent
         for (int i=0; i < 3-enemies.count; i++) {
-            int y = rand() % GRID_HEIGHT;
-            add_enemy(vec2(0, y), ENEMY_SLOW);
+            while (true) {
+                int y = rand() % GRID_HEIGHT;
+                
+                bool is_slot_occupied = false;
+                for (int i=0; i < enemies.count; i++) {
+                    Enemy* enemy = &(enemies.members[i]);
+                    if (enemy->current_grid_coord.y == y) {
+                        is_slot_occupied = true;
+                        break;
+                    }
+                }
+                
+                if (is_slot_occupied == false) {
+                    bool is_slow = rand() % 2 == 0;
+                    add_enemy(vec2(0, y), is_slow ? ENEMY_SLOW : ENEMY_FAST);
+                    break;
+                }
+            }
         }
     }
 
@@ -567,7 +583,7 @@ void update() {
 
         float speed = 0;
 
-        if (enemy->type == ENEMY_FAST) {speed = 0.025;}
+        if (enemy->type == ENEMY_FAST) {speed = 0.020;}
         else if (enemy->type == ENEMY_SLOW) {speed = 0.010;}
 
         speed *=1.3;
@@ -966,11 +982,13 @@ void init_hud(void) {
 }
 
 int main(void){
+    srand(time(NULL));
+
     init();
 
     SetConfigFlags(FLAG_VSYNC_HINT);
     // SetConfigFlags(FLAG_WINDOW_RESIZABLE);
-    SetConfigFlags(FLAG_FULLSCREEN_MODE);
+    // SetConfigFlags(FLAG_FULLSCREEN_MODE);
     SetTraceLogLevel(LOG_NONE);
    
     SetTargetFPS(30);
