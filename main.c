@@ -32,7 +32,7 @@ int compare##T(const void* a, const void* b) {  \
 float TILE_WIDTH = 64;
 float TILE_HEIGHT = 32;
 // TODO: might need a better data structure
-float enemy_positions[GRID_HEIGHT] = {0.0};
+float enemy_treaded_positions[GRID_HEIGHT] = {0.0};
 float VERTICAL_OFFSET;
 float HORIZONTAL_OFFSET;
 Vector2 DUMMY_REFERENCE = {.x = 99999, .y = 99999};
@@ -76,6 +76,7 @@ enum DefenseType {
     DEFENSE_FIRST = ENEMY_COUNT + 1, 
     DEFENSE_SLOW = ENEMY_COUNT + 1,
     DEFENSE_FAST,
+    DEFENSE_TYPE_3,
     DEFENSE_COUNT,
 };
 
@@ -94,8 +95,9 @@ typedef struct Defenses {
 
 enum ProjectileType {
     PROJECTILE_FIRST = DEFENSE_COUNT + 1, 
-    PROJECTILE_SLOW = DEFENSE_COUNT + 1,
-    PROJECTILE_FAST,
+    PROJECTILE_TYPE_1 = DEFENSE_COUNT + 1,
+    PROJECTILE_TYPE_2,
+    PROJECTILE_TYPE_3,
     PROJECTILE_COUNT
 };
 
@@ -104,6 +106,7 @@ typedef struct Projectile {
     Vector2 start_grid_coord;
     enum ProjectileType type;
     float life;
+    float damage;
 } Projectile;
 
 typedef struct Projectiles {
@@ -127,18 +130,22 @@ enum TextureIds {
     TEXTURE_WHITE_FULL_OVERLAY,
     TEXTURE_WHITE_HALF_OVERLAY,
     TEXTURE_WHITE_BLOCK_OVERLAY,
-    TEXTURE_MACHINE_GUN,
     TEXTURE_ENEMY_TYPE_1,
     TEXTURE_ENEMY_TYPE_2,
     TEXTURE_DEFENDER_TYPE_1,
     TEXTURE_DEFENDER_TYPE_2,
+    TEXTURE_DEFENDER_TYPE_3,
     TEXTURE_PROJECTILE_1,
+    TEXTURE_PROJECTILE_2,
+    TEXTURE_PROJECTILE_3,
     TEXTURE_COUNT
 };
 
 typedef struct DefenseItem {
     enum DefenseType type;
+    enum ProjectileType projectile_type;
     float charging_cadence_seconds;
+    float damage;
     double last_dispensed;
     double wait_time_per_dispense_seconds;
     uint32_t count_dispensed;
@@ -418,7 +425,7 @@ void add_defense(Vector2 position, enum DefenseType type) {
     defense->life = 100;
 }
 
-void add_projectile(float x, float y, Vector2 start_grid_coord, enum ProjectileType type) {
+void add_projectile(float x, float y, Vector2 start_grid_coord, enum ProjectileType type, float damage) {
     projectiles.members = resize(&projectiles, projectiles.members, sizeof(Projectile));
     DEBUG_PRINT("P: count=%d, cap=%d\n", projectiles.count, projectiles.capacity);
 
@@ -427,6 +434,7 @@ void add_projectile(float x, float y, Vector2 start_grid_coord, enum ProjectileT
     projectile->current_grid_coord = vec2(x, y);
     projectile->start_grid_coord = vec2(start_grid_coord.x, start_grid_coord.y);
     projectile->life = 100;
+    projectile->damage = damage;
 }
 
 void add_shard(float x, float y, float angle, float speed, float radius, float life, Color color) {
@@ -611,10 +619,19 @@ void update() {
         double time_passed = GetTime() - defense->last_attacked;
         double min_wait_time = inventory.defense_items[defense->type - DEFENSE_FIRST].charging_cadence_seconds;
         if (time_passed < min_wait_time) { continue; }
-
+        
         Vector2 p = defense->current_grid_coord;
-        add_projectile(p.x-1, p.y, p, PROJECTILE_FAST);
-        defense->last_attacked = GetTime();
+        // TODO: better way to quickly check if enemy is on this lane is needed
+        for (int i=0; i < enemies.count; i++) {
+            Enemy* enemy = &(enemies.members[i]);
+            if (enemy->current_grid_coord.y == p.y) {
+                // only shoot if there's an enemy on the lane
+                DefenseItem item = inventory.defense_items[defense->type - DEFENSE_FIRST];
+                add_projectile(p.x-1, p.y, p, item.projectile_type, item.damage);
+                defense->last_attacked = GetTime();
+                break;
+            }
+        }
     }
 
     qsort(defenses.members, defenses.count, sizeof(Defense), compareDefense);
@@ -665,7 +682,7 @@ void update() {
         // collided with enemy, update enemy health
         if (collided_object_pos != -1) {
             Enemy* enemy = (&enemies.members[collided_object_pos]);
-            enemy->life -= 40;
+            enemy->life -= projectile->damage;
             Vector2 screen_coords = {
                 .x=enemy->current_screen_coord.x,
                 .y=enemy->current_screen_coord.y
@@ -703,7 +720,7 @@ void draw_game_elements() {
 
         int y_pos = (int)ceilf(enemy->current_grid_coord.y);
         Vector2 grid_coords = Vector2Lerp(enemy->start_grid_coord, enemy->target_grid_coord, enemy->move_pct);
-        enemy_positions[y_pos] = grid_coords.x;
+        enemy_treaded_positions[y_pos] = fmaxf(grid_coords.x, enemy_treaded_positions[y_pos]);
     }
 
     // draw the grid
@@ -736,7 +753,7 @@ void draw_game_elements() {
                 treaded_texture = &ALL_TEXTURES[TEXTURE_GROUND_SAND_TREADED];
             }
 
-            if (enemy_positions[y] > x) {
+            if (enemy_treaded_positions[y] > x) {
                 DrawTextureV(*treaded_texture, screen_coords, WHITE);
             } else {
                 DrawTextureV(*ground_texture, screen_coords, WHITE);
@@ -861,8 +878,18 @@ void draw_hud() {
 
 Texture2D loadTextureFromImage(char* filename) {
     char path[256];
-    sprintf(path, "./assets/Isometric_Tiles_Pixel_Art/%s", filename);
+    sprintf(path, "./assets/%s", filename);
     Image image = LoadImage(path);
+    Texture2D texture = LoadTextureFromImage(image);
+    UnloadImage(image);
+    return texture;
+}
+
+Texture2D loadTextureFromImageResized(char* filename, int newWidth, int newHeight) {
+    char path[256];
+    sprintf(path, "./assets/%s", filename);
+    Image image = LoadImage(path);
+    ImageResize(&image, newWidth, newHeight);
     Texture2D texture = LoadTextureFromImage(image);
     UnloadImage(image);
     return texture;
@@ -888,6 +915,8 @@ void init(void) {
         .charging_cadence_seconds=4,
         .last_dispensed=GetTime() - 5,
         .wait_time_per_dispense_seconds=5,
+        .projectile_type=PROJECTILE_TYPE_1,
+        .damage=30,
     };
     inventory.defense_items[DEFENSE_FAST-DEFENSE_FIRST] = (DefenseItem){
         .is_unlocked=true, 
@@ -895,6 +924,17 @@ void init(void) {
         .charging_cadence_seconds=8,
         .last_dispensed=GetTime() - 10,
         .wait_time_per_dispense_seconds=10,
+        .projectile_type=PROJECTILE_TYPE_2,
+        .damage=45,
+    };
+    inventory.defense_items[DEFENSE_TYPE_3-DEFENSE_FIRST] = (DefenseItem){
+        .is_unlocked=true, 
+        .type=DEFENSE_TYPE_3, 
+        .charging_cadence_seconds=10,
+        .last_dispensed=GetTime() - 15,
+        .wait_time_per_dispense_seconds=15,
+        .projectile_type=PROJECTILE_TYPE_3,
+        .damage=55,
     };
     inventory.defense_items_size = DEFENSE_COUNT - DEFENSE_FIRST;
 }
@@ -952,17 +992,14 @@ int main(void){
     ALL_TEXTURES[TEXTURE_MOUSEOVER] = loadTextureFromImage("Blocks/blocks_99.png");
     ALL_TEXTURES[TEXTURE_WHITE_FULL_OVERLAY] = loadTextureFromImage("Blocks/overlay.png");
     ALL_TEXTURES[TEXTURE_WHITE_HALF_OVERLAY] = loadTextureFromImage("Blocks/half_overlay.png");
-    ALL_TEXTURES[TEXTURE_MACHINE_GUN] = loadTextureFromImage("Blocks/mgun.png");
     ALL_TEXTURES[TEXTURE_ENEMY_TYPE_1] = loadTextureFromImage("Blocks/blocks_30.png");
     ALL_TEXTURES[TEXTURE_ENEMY_TYPE_2] = loadTextureFromImage("Blocks/blocks_31.png");
     ALL_TEXTURES[TEXTURE_DEFENDER_TYPE_1] = loadTextureFromImage("Blocks/blocks_24.png");
     ALL_TEXTURES[TEXTURE_DEFENDER_TYPE_2] = loadTextureFromImage("Blocks/blocks_58.png");
-
-    // load the long way, because it needs preprocessing.
-    Image block_12 = LoadImage("./assets/Isometric_Tiles_Pixel_Art/Blocks/blocks_12.png");
-    ImageResize(&block_12, TILE_WIDTH / 2, TILE_WIDTH / 2);
-    ALL_TEXTURES[TEXTURE_PROJECTILE_1] = LoadTextureFromImage(block_12);
-    UnloadImage(block_12);
+    ALL_TEXTURES[TEXTURE_DEFENDER_TYPE_3] = loadTextureFromImage("Blocks/blocks_14.png");
+    ALL_TEXTURES[TEXTURE_PROJECTILE_1] = loadTextureFromImageResized("Custom/projectile_blue.png", TILE_WIDTH / 2, TILE_WIDTH / 2);
+    ALL_TEXTURES[TEXTURE_PROJECTILE_2] = loadTextureFromImageResized("Custom/projectile_orange.png", TILE_WIDTH / 2, TILE_WIDTH / 2);
+    ALL_TEXTURES[TEXTURE_PROJECTILE_3] = loadTextureFromImageResized("Custom/projectile_red.png", TILE_WIDTH / 2, TILE_WIDTH / 2);
 
     Image image = GenImageColor(TILE_WIDTH, TILE_HEIGHT * 2, ColorAlpha(WHITE, 0.5));
     ALL_TEXTURES[TEXTURE_WHITE_BLOCK_OVERLAY] = LoadTextureFromImage(image);
@@ -970,9 +1007,12 @@ int main(void){
 
     GAME_OBJECT_TEXTURES[ENEMY_SLOW] = ALL_TEXTURES[TEXTURE_ENEMY_TYPE_1];
     GAME_OBJECT_TEXTURES[ENEMY_FAST] = ALL_TEXTURES[TEXTURE_ENEMY_TYPE_2];
-    GAME_OBJECT_TEXTURES[DEFENSE_SLOW] = ALL_TEXTURES[TEXTURE_MACHINE_GUN];
-    GAME_OBJECT_TEXTURES[DEFENSE_FAST] = ALL_TEXTURES[TEXTURE_DEFENDER_TYPE_1];
-    GAME_OBJECT_TEXTURES[PROJECTILE_FAST] = ALL_TEXTURES[TEXTURE_PROJECTILE_1];
+    GAME_OBJECT_TEXTURES[DEFENSE_SLOW] = ALL_TEXTURES[TEXTURE_DEFENDER_TYPE_1];
+    GAME_OBJECT_TEXTURES[DEFENSE_FAST] = ALL_TEXTURES[TEXTURE_DEFENDER_TYPE_2];
+    GAME_OBJECT_TEXTURES[DEFENSE_TYPE_3] = ALL_TEXTURES[TEXTURE_DEFENDER_TYPE_3];
+    GAME_OBJECT_TEXTURES[PROJECTILE_TYPE_1] = ALL_TEXTURES[TEXTURE_PROJECTILE_1];
+    GAME_OBJECT_TEXTURES[PROJECTILE_TYPE_2] = ALL_TEXTURES[TEXTURE_PROJECTILE_2];
+    GAME_OBJECT_TEXTURES[PROJECTILE_TYPE_3] = ALL_TEXTURES[TEXTURE_PROJECTILE_3];
 
     {// random enemy generator
         srand(193397);
