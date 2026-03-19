@@ -1,5 +1,6 @@
 #include <inttypes.h>
 #include <limits.h>
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <math.h>
@@ -49,7 +50,8 @@ typedef struct GameObject {
 } GameObject;
 
 enum EnemyType {
-    ENEMY_SLOW ,
+    ENEMY_FIRST = 0, 
+    ENEMY_SLOW = 0,
     ENEMY_FAST,
     ENEMY_COUNT
 };
@@ -71,6 +73,7 @@ typedef struct Enemies {
 } Enemies;
 
 enum DefenseType {
+    DEFENSE_FIRST = ENEMY_COUNT + 1, 
     DEFENSE_SLOW = ENEMY_COUNT + 1,
     DEFENSE_FAST,
     DEFENSE_COUNT,
@@ -90,6 +93,7 @@ typedef struct Defenses {
 } Defenses;
 
 enum ProjectileType {
+    PROJECTILE_FIRST = DEFENSE_COUNT + 1, 
     PROJECTILE_SLOW = DEFENSE_COUNT + 1,
     PROJECTILE_FAST,
     PROJECTILE_COUNT
@@ -130,6 +134,30 @@ enum TextureIds {
     TEXTURE_PROJECTILE_1,
     TEXTURE_COUNT
 };
+
+typedef struct DefenseItem {
+    enum DefenseType type;
+    float charging_cadence_seconds;
+    double last_dispensed;
+    double wait_time_per_dispense_seconds;
+    bool is_unlocked;
+} DefenseItem;
+
+typedef struct Inventory {
+    // defense options and their charging state
+    DefenseItem defense_items[DEFENSE_COUNT - DEFENSE_FIRST];
+    uint8_t defense_items_size;
+} Inventory;
+
+typedef struct HUD {
+    int hovered_box_index;
+    int selected_box_index;
+    int total_slot_count;
+    float box_slot_size;
+    float clearing;
+    Rectangle bbox;
+    Color bg_color;
+} HUD;
 
 Vector2 vec2(float x, float y) {
     return (Vector2) {.x=x, .y=y};
@@ -262,11 +290,14 @@ void* resize(void* container_ptr, void* objects, size_t object_size) {
 }
 
 /* global variables start */
+Inventory inventory;
+HUD hud;
 Enemies enemies;
 Defenses defenses;
 Projectiles projectiles;
 Shards shards;
-Vector2 mouse_position;
+Vector2 mouse_position_on_grid;
+Vector2 mouse_position_on_screen;
 //
 uint16_t screen_width;
 uint16_t screen_height;
@@ -443,14 +474,46 @@ int check_enemy_defense_collision(Defense* defense) {
 }
 
 void grab_user_input() {
-    mouse_position = to_grid_coords(GetMousePosition());
+    mouse_position_on_screen = GetMousePosition();
+    mouse_position_on_grid = to_grid_coords(mouse_position_on_screen);
+
+    {// handle screen interactions
+
+        // mouse is on the HUD
+        if (CheckCollisionPointRec(mouse_position_on_screen, hud.bbox)) {
+            // TODO: use more accurate technique to pick a slot in the HUD
+            float x_norm = (
+                mouse_position_on_screen.x - (hud.bbox.x + hud.clearing)
+            );
+            hud.hovered_box_index = (int)(x_norm / hud.box_slot_size);
+        } else {
+            hud.hovered_box_index = -1;
+        }
+    }
 
     if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT)) {
-        int mpx = mouse_position.x;
-        int mpy = mouse_position.y;
-        if (mpx >= 0 && mpx < GRID_WIDTH && mpy >= 0 && mpy < GRID_HEIGHT) {
-            if (mpx > 5 && mpx < GRID_WIDTH - 2) {
-                add_defense(mouse_position, DEFENSE_SLOW);
+        {// handle grid interactions
+            int mpx = mouse_position_on_grid.x;
+            int mpy = mouse_position_on_grid.y;
+            
+            if (mpx >= 0 && mpx < GRID_WIDTH && mpy >= 0 && mpy < GRID_HEIGHT) {
+                // TODO: this is hardcoded boundary check so that we cannot add defense in the sand or concrete; needs to be removed once we have dynamic maps
+                if (mpx > 5 && mpx < GRID_WIDTH - 2) {
+                    if (hud.selected_box_index != -1) {
+                        enum DefenseType type = inventory.defense_items[hud.selected_box_index].type;
+                        add_defense(mouse_position_on_grid, type);
+                    }
+                }
+            }
+        }
+
+        {// handle screen interactions
+            if (hud.hovered_box_index == -1) {
+                hud.selected_box_index = -1;
+            } else if (hud.hovered_box_index < inventory.defense_items_size) {
+                hud.selected_box_index = hud.hovered_box_index;
+            } else {
+                hud.selected_box_index = -1;
             }
         }
     }
@@ -527,7 +590,8 @@ void update() {
         // TODO: projectile generation should be based on charging a certain bar 
         // which would be higher/lower depending on the effectiveness of the projectile
         double time_passed = GetTime() - defense->last_attacked;
-        if (time_passed < 4.0) { continue; }
+        double min_wait_time = inventory.defense_items[defense->type - DEFENSE_FIRST].charging_cadence_seconds;
+        if (time_passed < min_wait_time) { continue; }
 
         Vector2 p = defense->current_grid_coord;
         add_projectile(p.x-1, p.y, p, PROJECTILE_FAST);
@@ -659,8 +723,8 @@ void draw_game_elements() {
                 DrawTextureV(*ground_texture, screen_coords, WHITE);
             }
 
-            int mpx = mouse_position.x;
-            int mpy = mouse_position.y;
+            int mpx = mouse_position_on_grid.x;
+            int mpy = mouse_position_on_grid.y;
 
             if (mpy == y && mpx >= 0 && mpx < GRID_WIDTH) {
                 if (mpx == x && (x > 5 && x < GRID_WIDTH - 2)) {
@@ -702,7 +766,8 @@ void draw_game_elements() {
 
                 // draw charging animation
                 float diff = GetTime() - defense->last_attacked;
-                float pct = diff / 4.0;
+                double min_wait_time = inventory.defense_items[defense->type - DEFENSE_FIRST].charging_cadence_seconds;
+                float pct = diff / min_wait_time;
                 BeginScissorMode((int) screen_coords.x, (int) ceil(screen_coords.y + 2 * TILE_HEIGHT * (1 - pct)), TILE_WIDTH, 2 * TILE_HEIGHT * pct);
                     DrawTextureV(ALL_TEXTURES[TEXTURE_WHITE_HALF_OVERLAY], screen_coords, WHITE);
                 EndScissorMode();
@@ -714,15 +779,6 @@ void draw_game_elements() {
                 Vector2 screen_coords = enemy->current_screen_coord;
                 screen_coords.y -= TILE_HEIGHT;
                 DrawTextureV(texture, screen_coords, WHITE);
-
-                // DrawCircleV(vec2(screen_coords.x + TILE_WIDTH/2.0 + TILE_WIDTH/4.0, screen_coords.y + TILE_WIDTH/2.0 + TILE_WIDTH/4.0), 5.0, RED);
-                // DrawRectangleLines(
-                //     (int )(screen_coords.x), 
-                //     (int) (screen_coords.y), 
-                //     texture.width, 
-                //     texture.height, 
-                //     BLACK
-                // );
             } else if (smallest == 3) {
                 pi++;
 
@@ -730,22 +786,6 @@ void draw_game_elements() {
                 Vector2 screen_coords = to_screen_coords(projectile->current_grid_coord);
                 screen_coords.y -= TILE_HEIGHT;
                 DrawTextureV(texture, vec2(screen_coords.x + TILE_WIDTH/4.0, screen_coords.y + TILE_WIDTH/4.0), WHITE);
-                // DrawRectangleLines(
-                //     (int )(screen_coords.x + TILE_WIDTH/4.0), 
-                //     (int) (screen_coords.y + TILE_WIDTH/4.0), 
-                //     texture.width, 
-                //     texture.height, 
-                //     BLACK
-                // );
-                // // [aaaa.aa]; [aaaa.aa]
-                // char buf[21];
-                // sprintf( buf, "[%.2f]; [%.2f]", (projectile->current_grid_coord.x), (projectile->current_grid_coord.y));
-                // DrawText(buf, 
-                //     (int )(screen_coords.x + TILE_WIDTH/4.0), 
-                //     (int) (screen_coords.y + TILE_WIDTH/4.0), 
-                //     15, 
-                //     BLACK
-                // );
             } else {
                 // what??
             }
@@ -753,7 +793,6 @@ void draw_game_elements() {
     }
 
     {
-        // DEBUG_PRINT("drawing shards [cap:%d, count:%d]\n", shards.capacity, shards.count);
         for (int i=0; i < shards.count; i++) {
             Shard* shard = &(shards.members[i]);
             shard_draw(shard);
@@ -762,7 +801,40 @@ void draw_game_elements() {
 }
 
 void draw_hud() {
+    DrawRectangleRec(hud.bbox, hud.bg_color);
 
+    // draw the inventory
+    float box_slot_size = hud.box_slot_size;
+    float x = hud.bbox.x;
+    float y = hud.bbox.y + (hud.bbox.height - box_slot_size) / 2;
+    for (int i=0; i < inventory.defense_items_size;i++) {
+        DefenseItem item = inventory.defense_items[i];
+        Color color = RED;
+        if (!item.is_unlocked) {
+            color = ColorAlpha(color, 0.5);
+        } else if (i == hud.selected_box_index) {
+            color = GREEN;
+        } else if (i == hud.hovered_box_index) {
+            color = WHITE;
+        }
+        x += hud.clearing;
+        DrawRectangleV(vec2(x, y), vec2(box_slot_size, box_slot_size), color);
+
+        {
+            Texture2D texture = GAME_OBJECT_TEXTURES[item.type];
+            BeginScissorMode(x, y, box_slot_size, box_slot_size);
+                DrawTextureEx(texture, vec2(x, y), 0, box_slot_size / TILE_WIDTH, WHITE);
+            EndScissorMode();
+
+            // draw charging animation
+            // float diff = GetTime() - defense->last_attacked;
+            // float pct = diff / 4.0;
+            // BeginScissorMode((int) screen_coords.x, (int) ceil(screen_coords.y + 2 * TILE_HEIGHT * (1 - pct)), TILE_WIDTH, 2 * TILE_HEIGHT * pct);
+            //     DrawTextureV(ALL_TEXTURES[TEXTURE_WHITE_HALF_OVERLAY], screen_coords, WHITE);
+            // EndScissorMode();
+        }
+        x += box_slot_size;
+    }
 }
 
 Texture2D loadTextureFromImage(char* filename) {
@@ -786,6 +858,45 @@ void init(void) {
 
     shards = (Shards) {0};
     shards.members = resize(&shards, shards.members, sizeof(Shard));
+
+    inventory = (Inventory) {};
+    inventory.defense_items[DEFENSE_SLOW-DEFENSE_FIRST] = (DefenseItem){
+        .is_unlocked=true, 
+        .type=DEFENSE_SLOW, 
+        .charging_cadence_seconds=4,
+        .last_dispensed=0,
+        .wait_time_per_dispense_seconds=5,
+    };
+    inventory.defense_items[DEFENSE_FAST-DEFENSE_FIRST] = (DefenseItem){
+        .is_unlocked=true, 
+        .type=DEFENSE_FAST, 
+        .charging_cadence_seconds=8,
+        .last_dispensed=0,
+        .wait_time_per_dispense_seconds=10,
+    };
+    inventory.defense_items_size = DEFENSE_COUNT - DEFENSE_FIRST;
+}
+
+void init_hud(void) {
+    int TOTAL_SLOT_COUNT = 5;
+    float hud_height = screen_height * 0.05;
+    float box_slot_size = hud_height * 0.8;
+    float clearing = (screen_width * 0.5) * 0.01;
+    float hud_width = (clearing + box_slot_size) * TOTAL_SLOT_COUNT + clearing;
+    hud = (HUD) {
+        .total_slot_count = 5,
+        .box_slot_size = box_slot_size,
+        .bbox = {
+            .x = (screen_width - hud_width) / 2.0,
+            .y = screen_height * 0.02, // 2% margin
+            .width = hud_width,
+            .height = hud_height,
+        },
+        .bg_color = ColorAlpha(GRAY, 0.5),
+        .clearing = clearing,
+        .hovered_box_index = -1,
+        .selected_box_index = -1,
+    };
 }
 
 int main(void){
@@ -844,6 +955,8 @@ int main(void){
             add_enemy(vec2(0, y), ENEMY_SLOW);
         }
     }
+
+    init_hud();
 
     while (!WindowShouldClose())
     {
