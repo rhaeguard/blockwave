@@ -126,6 +126,7 @@ enum TextureIds {
     TEXTURE_MOUSEOVER,
     TEXTURE_WHITE_FULL_OVERLAY,
     TEXTURE_WHITE_HALF_OVERLAY,
+    TEXTURE_WHITE_BLOCK_OVERLAY,
     TEXTURE_MACHINE_GUN,
     TEXTURE_ENEMY_TYPE_1,
     TEXTURE_ENEMY_TYPE_2,
@@ -140,6 +141,7 @@ typedef struct DefenseItem {
     float charging_cadence_seconds;
     double last_dispensed;
     double wait_time_per_dispense_seconds;
+    uint32_t count_dispensed;
     bool is_unlocked;
 } DefenseItem;
 
@@ -161,6 +163,10 @@ typedef struct HUD {
 
 Vector2 vec2(float x, float y) {
     return (Vector2) {.x=x, .y=y};
+}
+
+Rectangle rect(float x, float y, float w, float h) {
+    return (Rectangle) {.x=x, .y=y, .width=w, .height=h};
 }
 
 // returns a random float between [0, 1]
@@ -296,8 +302,11 @@ Enemies enemies;
 Defenses defenses;
 Projectiles projectiles;
 Shards shards;
+// user inputs start
 Vector2 mouse_position_on_grid;
 Vector2 mouse_position_on_screen;
+bool is_left_mouse_button_released = false;
+// user inputs end
 //
 uint16_t screen_width;
 uint16_t screen_height;
@@ -476,7 +485,10 @@ int check_enemy_defense_collision(Defense* defense) {
 void grab_user_input() {
     mouse_position_on_screen = GetMousePosition();
     mouse_position_on_grid = to_grid_coords(mouse_position_on_screen);
+    is_left_mouse_button_released = IsMouseButtonReleased(MOUSE_BUTTON_LEFT);
+}
 
+void process_user_input() {
     {// handle screen interactions
 
         // mouse is on the HUD
@@ -491,7 +503,7 @@ void grab_user_input() {
         }
     }
 
-    if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT)) {
+    if (is_left_mouse_button_released) {
         {// handle grid interactions
             int mpx = mouse_position_on_grid.x;
             int mpy = mouse_position_on_grid.y;
@@ -502,18 +514,25 @@ void grab_user_input() {
                     if (hud.selected_box_index != -1) {
                         enum DefenseType type = inventory.defense_items[hud.selected_box_index].type;
                         add_defense(mouse_position_on_grid, type);
+                        inventory.defense_items[hud.selected_box_index].last_dispensed = GetTime();
+                        inventory.defense_items[hud.selected_box_index].count_dispensed += 1;
                     }
                 }
             }
         }
 
         {// handle screen interactions
-            if (hud.hovered_box_index == -1) {
+            if (hud.hovered_box_index < 0 || hud.hovered_box_index >= inventory.defense_items_size) {
+                // if out of bounds, it becomes unselected
                 hud.selected_box_index = -1;
-            } else if (hud.hovered_box_index < inventory.defense_items_size) {
-                hud.selected_box_index = hud.hovered_box_index;
             } else {
-                hud.selected_box_index = -1;
+                DefenseItem item = inventory.defense_items[hud.hovered_box_index];
+                bool is_selectable =  GetTime() - item.last_dispensed > item.wait_time_per_dispense_seconds;
+                if (is_selectable) {
+                    hud.selected_box_index = hud.hovered_box_index;
+                } else {
+                    hud.selected_box_index = -1;
+                }
             }
         }
     }
@@ -825,13 +844,16 @@ void draw_hud() {
             BeginScissorMode(x, y, box_slot_size, box_slot_size);
                 DrawTextureEx(texture, vec2(x, y), 0, box_slot_size / TILE_WIDTH, WHITE);
             EndScissorMode();
+            
+            float diff =  GetTime() - item.last_dispensed;
+            float pct = diff /  item.wait_time_per_dispense_seconds;
+            if (pct < 1) {
+                // draw charging animation
+                BeginScissorMode(x, ceilf(y + box_slot_size * (1 - pct)), box_slot_size, ceilf(box_slot_size * pct));
+                    DrawTextureEx(ALL_TEXTURES[TEXTURE_WHITE_BLOCK_OVERLAY], vec2(x, y), 0, box_slot_size / TILE_WIDTH, WHITE);
+                EndScissorMode();
+            }
 
-            // draw charging animation
-            // float diff = GetTime() - defense->last_attacked;
-            // float pct = diff / 4.0;
-            // BeginScissorMode((int) screen_coords.x, (int) ceil(screen_coords.y + 2 * TILE_HEIGHT * (1 - pct)), TILE_WIDTH, 2 * TILE_HEIGHT * pct);
-            //     DrawTextureV(ALL_TEXTURES[TEXTURE_WHITE_HALF_OVERLAY], screen_coords, WHITE);
-            // EndScissorMode();
         }
         x += box_slot_size;
     }
@@ -864,14 +886,14 @@ void init(void) {
         .is_unlocked=true, 
         .type=DEFENSE_SLOW, 
         .charging_cadence_seconds=4,
-        .last_dispensed=0,
+        .last_dispensed=GetTime() - 5,
         .wait_time_per_dispense_seconds=5,
     };
     inventory.defense_items[DEFENSE_FAST-DEFENSE_FIRST] = (DefenseItem){
         .is_unlocked=true, 
         .type=DEFENSE_FAST, 
         .charging_cadence_seconds=8,
-        .last_dispensed=0,
+        .last_dispensed=GetTime() - 10,
         .wait_time_per_dispense_seconds=10,
     };
     inventory.defense_items_size = DEFENSE_COUNT - DEFENSE_FIRST;
@@ -942,6 +964,10 @@ int main(void){
     ALL_TEXTURES[TEXTURE_PROJECTILE_1] = LoadTextureFromImage(block_12);
     UnloadImage(block_12);
 
+    Image image = GenImageColor(TILE_WIDTH, TILE_HEIGHT * 2, ColorAlpha(WHITE, 0.5));
+    ALL_TEXTURES[TEXTURE_WHITE_BLOCK_OVERLAY] = LoadTextureFromImage(image);
+    UnloadImage(image);
+
     GAME_OBJECT_TEXTURES[ENEMY_SLOW] = ALL_TEXTURES[TEXTURE_ENEMY_TYPE_1];
     GAME_OBJECT_TEXTURES[ENEMY_FAST] = ALL_TEXTURES[TEXTURE_ENEMY_TYPE_2];
     GAME_OBJECT_TEXTURES[DEFENSE_SLOW] = ALL_TEXTURES[TEXTURE_MACHINE_GUN];
@@ -961,6 +987,7 @@ int main(void){
     while (!WindowShouldClose())
     {
         grab_user_input();
+        process_user_input();
         update();
 
         BeginDrawing();
