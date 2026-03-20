@@ -7,10 +7,15 @@ PLATFORM 				?= WINDOWS
 ifeq ($(PLATFORM), WINDOWS)
     LDFLAGS		= -lopengl32 -lgdi32 -lwinmm
 	GAME_NAME	= blockwave.exe
+	RUN_CMD 	= .\$(GAME_NAME)
 else
     LDFLAGS=-lm
 	GAME_NAME	= blockwave
+	RUN_CMD 	= ./$(GAME_NAME)
 endif
+
+run: compile
+	$(RUN_CMD)
 
 compile: raylib
 	$(CC) main.c $(CFLAGS) $(INCLUDE) $(STATIC_LIBS) $(LDFLAGS) -o $(GAME_NAME)

@@ -22,6 +22,15 @@ progress so far
 - [ ] Enemy waves
 - [ ] Publish on itch.io? (using web assembly? emscripten?)
 
+## Building
+
+```sh
+git clone https://github.com/rhaeguard/blockwave.git
+cd blockwave
+git submodule update --init --recursive
+make run
+```
+
 ## Assets
 
 I absolutely do not own any of the assets used in this game. Please check out the original authors! 
