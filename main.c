@@ -28,13 +28,16 @@ int compare##T(const void* a, const void* b) {  \
     return isometric_view_compare_vec2(&p1, &p2);  \
 }
 
+#define vec2(xx,yy) ((Vector2) {.x=xx, .y=yy})
+#define rect(xx,yy,w,h) ((Rectangle) {.x=xx, .y=yy, .width=w, .height=h})
+
 float TILE_WIDTH = 64;
 float TILE_HEIGHT = 32;
 // TODO: might need a better data structure
 float enemy_treaded_positions[GRID_HEIGHT] = {0.0};
 float VERTICAL_OFFSET;
 float HORIZONTAL_OFFSET;
-Vector2 DUMMY_REFERENCE = {.x = 99999, .y = 99999};
+Vector2 DUMMY_REFERENCE = {.x=99999, .y=99999};
 
 enum GameObjectType {
     GO_ENEMY, 
@@ -167,14 +170,6 @@ typedef struct HUD {
     Color bg_color;
 } HUD;
 
-static inline Vector2 vec2(float x, float y) {
-    return (Vector2) {.x=x, .y=y};
-}
-
-static inline Rectangle rect(float x, float y, float w, float h) {
-    return (Rectangle) {.x=x, .y=y, .width=w, .height=h};
-}
-
 // returns a random float between [0, 1]
 static inline float get_random_float() {
     float r = (float)rand() / (float)RAND_MAX;
@@ -205,7 +200,7 @@ Vector2 shard_get_point(float angle, Vector2 e_radius) {
     float x = e_radius.x * cosf(theta);
     float y = e_radius.y * sinf(theta);
 
-    return (Vector2) {.x = x, .y = y};
+    return vec2(x, y);
 }
 
 int compare_floats(const void *a, const void *b) {
@@ -254,15 +249,15 @@ void shard_update(Shard* shard) {
         shard->angles[i] += 10.0;
     }
 
-    Vector2 e_radius = {
-        .x = shard->radius * 1.5,
-        .y = shard->radius
-    };
+    Vector2 e_radius = vec2(
+        shard->radius * 1.5,
+        shard->radius
+    );
 
     shards_get_polygon(e_radius, shard);
 }
 
-void shard_draw(Shard* shard) {
+void shard_draw(const Shard* shard) {
     if (shard->life <= 0) {
         return;
     }
@@ -322,7 +317,7 @@ Texture2D GAME_OBJECT_TEXTURES[10];
 
 // This function returns the screen coordinates
 // given the grid coordinates
-Vector2 to_screen_coords(Vector2 grid_coords) {
+static inline Vector2 to_screen_coords(Vector2 grid_coords) {
     // calculate screen coordinates
     float x = (grid_coords.x - grid_coords.y) * (TILE_WIDTH / 2.0);
     float y = (grid_coords.x + grid_coords.y) * (TILE_HEIGHT / 2.0);
@@ -336,7 +331,7 @@ Vector2 to_screen_coords(Vector2 grid_coords) {
 
 // This function returns the grid coordinates
 // given the screen coordinates
-Vector2 to_grid_coords(Vector2 screen) {
+static inline Vector2 to_grid_coords(Vector2 screen) {
     screen.x -= HORIZONTAL_OFFSET;
     screen.y -= VERTICAL_OFFSET;
 
@@ -350,7 +345,7 @@ Vector2 to_grid_coords(Vector2 screen) {
     return vec2(x, y);
 }
 
-int isometric_view_compare_vec2(Vector2* p1, Vector2* p2) {
+static inline int isometric_view_compare_vec2(const Vector2* p1, const Vector2* p2) {
     if (p1->y < p2->y) {
         return -1;
     } else if (p1->y > p2->y) {
@@ -374,9 +369,9 @@ int compare_shards(const void *a, const void *b) {
 }
 
 enum GameObjectType isometric_view_compare(
-    Defense* d,
-    Enemy* e,
-    Projectile* p
+    const Defense* d,
+    const Enemy* e,
+    const Projectile* p
 ) {
     Vector2 defense_grid_coords = d == NULL ? DUMMY_REFERENCE : d->current_grid_coord;
     Vector2 enemy_grid_coords = e == NULL ? DUMMY_REFERENCE : e->current_grid_coord;
@@ -444,22 +439,22 @@ void add_shard(float x, float y, float angle, float speed, float radius, float l
     Shard* shard = &(shards.members[shards.count++]); 
     shard->position = vec2(x, y);
     shard->life = life;
-    shard->velocity = (Vector2) {
-        .x = cosf(angle_in_radians) * speed,
-        .y = -sinf(angle_in_radians) * speed,
-    };
+    shard->velocity = vec2(
+        cosf(angle_in_radians) * speed,
+        -sinf(angle_in_radians) * speed
+    );
     shard->color = color;
     shard->radius = radius;
 
     shards_set_angles(shard);
 }
 
-int check_projectile_collision(Projectile* projectile) {
+int check_projectile_collision(const Projectile* projectile) {
     Vector2 pp = projectile->current_grid_coord;
     Vector2 st = projectile->start_grid_coord;
 
     for (uint32_t i=0; i < enemies.count; i++) {
-        Enemy* enemy = &(enemies.members[i]); 
+        const Enemy* enemy = &(enemies.members[i]); 
         Vector2 ep = enemy->current_grid_coord;
         if (ep.y != pp.y) { continue; }
 
@@ -476,7 +471,7 @@ int check_enemy_defense_collision(Defense* defense) {
     Vector2 dp = defense->current_grid_coord;
 
     for (uint32_t i=0; i < enemies.count; i++) {
-        Enemy* enemy = &(enemies.members[i]); 
+        const Enemy* enemy = &(enemies.members[i]); 
         Vector2 ep = enemy->current_grid_coord;
         if (ep.y != dp.y) { continue; }
 
@@ -599,6 +594,11 @@ void update() {
         // this is necessary for depth sorting
         enemy->current_grid_coord.x = roundf(interpolated_grid_coord.x);
         enemy->current_grid_coord.y = roundf(interpolated_grid_coord.y);
+
+        // make note of the paths they have treaded
+        int y_pos = (int)ceilf(enemy->current_grid_coord.y);
+        Vector2 grid_coords = Vector2Lerp(enemy->start_grid_coord, enemy->target_grid_coord, enemy->move_pct);
+        enemy_treaded_positions[y_pos] = fmaxf(grid_coords.x, enemy_treaded_positions[y_pos]);
     }
 
     qsort(enemies.members, enemies.count, sizeof(Enemy), compareEnemy);
@@ -615,10 +615,10 @@ void update() {
             defense->life = 0;
             remove_count += 1;
 
-            Vector2 explosion_center = {
-                .x = defense->current_grid_coord.x + 0.5,
-                .y = defense->current_grid_coord.y - 0.5
-            };
+            Vector2 explosion_center = vec2(
+                defense->current_grid_coord.x + 0.5,
+                defense->current_grid_coord.y - 0.5
+            );
 
             Vector2 screen_coords = to_screen_coords(explosion_center);
 
@@ -733,18 +733,6 @@ void update() {
 }
 
 void draw_game_elements() {
-    for (uint32_t i=0; i < enemies.count; i++) {
-        Enemy* enemy = &(enemies.members[i]);
-
-        if (enemy->life <= 0) {
-            continue;
-        }
-
-        int y_pos = (int)ceilf(enemy->current_grid_coord.y);
-        Vector2 grid_coords = Vector2Lerp(enemy->start_grid_coord, enemy->target_grid_coord, enemy->move_pct);
-        enemy_treaded_positions[y_pos] = fmaxf(grid_coords.x, enemy_treaded_positions[y_pos]);
-    }
-
     // draw the grid
     float minx = INT_MAX; 
     float miny = INT_MAX;
