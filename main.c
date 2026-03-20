@@ -167,16 +167,16 @@ typedef struct HUD {
     Color bg_color;
 } HUD;
 
-Vector2 vec2(float x, float y) {
+static inline Vector2 vec2(float x, float y) {
     return (Vector2) {.x=x, .y=y};
 }
 
-Rectangle rect(float x, float y, float w, float h) {
+static inline Rectangle rect(float x, float y, float w, float h) {
     return (Rectangle) {.x=x, .y=y, .width=w, .height=h};
 }
 
 // returns a random float between [0, 1]
-float get_random_float() {
+static inline float get_random_float() {
     float r = (float)rand() / (float)RAND_MAX;
     return r;
 }
@@ -359,9 +359,9 @@ int isometric_view_compare_vec2(Vector2* p1, Vector2* p2) {
     return p1->x - p2->x;
 }
 
-COMPARE_FUNC(Enemy);
-COMPARE_FUNC(Defense);
-COMPARE_FUNC(Projectile);
+COMPARE_FUNC(Enemy)
+COMPARE_FUNC(Defense)
+COMPARE_FUNC(Projectile)
 
 int compare_shards(const void *a, const void *b) {
   Shard *o1 = ((Shard *)a);
@@ -458,7 +458,7 @@ int check_projectile_collision(Projectile* projectile) {
     Vector2 pp = projectile->current_grid_coord;
     Vector2 st = projectile->start_grid_coord;
 
-    for (int i=0; i < enemies.count; i++) {
+    for (uint32_t i=0; i < enemies.count; i++) {
         Enemy* enemy = &(enemies.members[i]); 
         Vector2 ep = enemy->current_grid_coord;
         if (ep.y != pp.y) { continue; }
@@ -475,7 +475,7 @@ int check_projectile_collision(Projectile* projectile) {
 int check_enemy_defense_collision(Defense* defense) {
     Vector2 dp = defense->current_grid_coord;
 
-    for (int i=0; i < enemies.count; i++) {
+    for (uint32_t i=0; i < enemies.count; i++) {
         Enemy* enemy = &(enemies.members[i]); 
         Vector2 ep = enemy->current_grid_coord;
         if (ep.y != dp.y) { continue; }
@@ -549,12 +549,12 @@ void update() {
     float delta_time = GetFrameTime();
 
     {// keep enemy count consistent
-        for (int i=0; i < 3-enemies.count; i++) {
+        for (uint32_t i=0; i < 3-enemies.count; i++) {
             while (true) {
                 int y = rand() % GRID_HEIGHT;
                 
                 bool is_slot_occupied = false;
-                for (int i=0; i < enemies.count; i++) {
+                for (uint32_t i=0; i < enemies.count; i++) {
                     Enemy* enemy = &(enemies.members[i]);
                     if (enemy->current_grid_coord.y == y) {
                         is_slot_occupied = true;
@@ -573,7 +573,7 @@ void update() {
 
     // update enemies
     int remove_count = 0;
-    for (int i=0; i < enemies.count; i++) {
+    for (uint32_t i=0; i < enemies.count; i++) {
         Enemy* enemy = &(enemies.members[i]);
 
         if (enemy->life <= 0) {
@@ -606,7 +606,7 @@ void update() {
 
     // update defenses
     remove_count = 0;
-    for (int i=0; i < defenses.count; i++) {
+    for (uint32_t i=0; i < defenses.count; i++) {
         Defense* defense = &(defenses.members[i]);
 
         int collided_object_pos = check_enemy_defense_collision(defense);
@@ -644,7 +644,7 @@ void update() {
         
         Vector2 p = defense->current_grid_coord;
         // TODO: better way to quickly check if enemy is on this lane is needed
-        for (int i=0; i < enemies.count; i++) {
+        for (uint32_t i=0; i < enemies.count; i++) {
             Enemy* enemy = &(enemies.members[i]);
             if (enemy->current_grid_coord.y == p.y) {
                 // only shoot if there's an enemy on the lane
@@ -661,7 +661,7 @@ void update() {
 
     // update projectiles
     remove_count = 0;
-    for (int i=0; i < projectiles.count; i++) {
+    for (uint32_t i=0; i < projectiles.count; i++) {
         Projectile* projectile = &(projectiles.members[i]);
         // TODO: projectiles will move with different speeds
         projectile->current_grid_coord.x -= 2 * delta_time;
@@ -720,7 +720,7 @@ void update() {
 
     // update shards
     remove_count = 0;
-    for (int i=0; i < shards.count; i++) {
+    for (uint32_t i=0; i < shards.count; i++) {
         Shard* shard = &(shards.members[i]);
         shard_update(shard);
         if (shard->life <= 0) {
@@ -733,7 +733,7 @@ void update() {
 }
 
 void draw_game_elements() {
-    for (int i=0; i < enemies.count; i++) {
+    for (uint32_t i=0; i < enemies.count; i++) {
         Enemy* enemy = &(enemies.members[i]);
 
         if (enemy->life <= 0) {
@@ -849,7 +849,7 @@ void draw_game_elements() {
     }
 
     {
-        for (int i=0; i < shards.count; i++) {
+        for (uint32_t i=0; i < shards.count; i++) {
             Shard* shard = &(shards.members[i]);
             shard_draw(shard);
         }
@@ -896,15 +896,6 @@ void draw_hud() {
     }
 }
 
-Texture2D loadTextureFromImage(const char* filename) {
-    char path[256];
-    sprintf(path, "./assets/%s", filename);
-    Image image = LoadImage(path);
-    Texture2D texture = LoadTextureFromImage(image);
-    UnloadImage(image);
-    return texture;
-}
-
 Texture2D loadTextureFromImageResized(const char* filename, int newWidth, int newHeight) {
     char path[256];
     sprintf(path, "./assets/%s", filename);
@@ -914,6 +905,11 @@ Texture2D loadTextureFromImageResized(const char* filename, int newWidth, int ne
     UnloadImage(image);
     return texture;
 }
+
+static inline Texture2D loadTextureFromImage(const char* filename) {
+    return loadTextureFromImageResized(filename, TILE_WIDTH, TILE_WIDTH);
+}
+
 
 void init(void) {
     enemies = (Enemies){0};
@@ -928,7 +924,7 @@ void init(void) {
     shards = (Shards) {0};
     shards.members = resize(&shards, shards.members, sizeof(Shard));
 
-    inventory = (Inventory) {};
+    inventory = (Inventory) {0};
     inventory.defense_items[DEFENSE_TYPE_1-DEFENSE_FIRST] = (DefenseItem){
         .is_unlocked=true, 
         .type=DEFENSE_TYPE_1, 
