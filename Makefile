@@ -1,15 +1,22 @@
-all: compile
+CC 						= gcc
+DIR_RAYLIB 				= external/raylib/src
+INCLUDE 				= -I$(DIR_RAYLIB)
+STATIC_LIBS 			= $(DIR_RAYLIB)/libraylib.a
+CFLAGS					= -std=c99 -Wextra -pedantic -ggdb
+PLATFORM 				?= WINDOWS
+ifeq ($(PLATFORM), WINDOWS)
+    LDFLAGS		= -lopengl32 -lgdi32 -lwinmm
+	GAME_NAME	= blockwave.exe
+else
+    LDFLAGS=-lm
+	GAME_NAME	= blockwave
+endif
 
-compile:
-	gcc main.c -std=c99 -Wall -I./include -L./lib -l:libraylib.a -lm -o game
+compile: raylib
+	$(CC) main.c $(CFLAGS) $(INCLUDE) $(STATIC_LIBS) $(LDFLAGS) -o $(GAME_NAME)
 
-compile-debug:
-	gcc main.c -std=c99 -g -Wall -I./include -L./lib -l:libraylib.a -lm -o game
+raylib:
+	$(MAKE) -C $(DIR_RAYLIB) PLATFORM=PLATFORM_DESKTOP
 
-check: compile-debug vg
-
-vg:
-	valgrind --track-origins=yes --leak-check=full --show-leak-kinds=definite ./game
-
-windows:
-	gcc main.c -std=c99 -Wall -I./include -L./lib -l:raylib.dll -lm -o game
+valgrind:
+	valgrind --track-origins=yes --leak-check=full --show-leak-kinds=definite $(GAME_NAME)

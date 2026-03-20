@@ -50,8 +50,8 @@ typedef struct GameObject {
 
 enum EnemyType {
     ENEMY_FIRST = 0, 
-    ENEMY_SLOW = 0,
-    ENEMY_FAST,
+    ENEMY_TYPE_1 = 0,
+    ENEMY_TYPE_2,
     ENEMY_COUNT
 };
 
@@ -73,8 +73,8 @@ typedef struct Enemies {
 
 enum DefenseType {
     DEFENSE_FIRST = ENEMY_COUNT + 1, 
-    DEFENSE_SLOW = ENEMY_COUNT + 1,
-    DEFENSE_FAST,
+    DEFENSE_TYPE_1 = ENEMY_COUNT + 1,
+    DEFENSE_TYPE_2,
     DEFENSE_TYPE_3,
     DEFENSE_COUNT,
 };
@@ -563,8 +563,8 @@ void update() {
                 }
                 
                 if (is_slot_occupied == false) {
-                    bool is_slow = rand() % 2 == 0;
-                    add_enemy(vec2(0, y), is_slow ? ENEMY_SLOW : ENEMY_FAST);
+                    bool is_type_1 = rand() % 2 == 0;
+                    add_enemy(vec2(0, y), is_type_1 ? ENEMY_TYPE_1 : ENEMY_TYPE_2);
                     break;
                 }
             }
@@ -583,8 +583,8 @@ void update() {
 
         float speed = 0;
 
-        if (enemy->type == ENEMY_FAST) {speed = 0.020;}
-        else if (enemy->type == ENEMY_SLOW) {speed = 0.010;}
+        if (enemy->type == ENEMY_TYPE_2) {speed = 0.020;}
+        else if (enemy->type == ENEMY_TYPE_1) {speed = 0.010;}
 
         speed *=1.3;
 
@@ -896,7 +896,7 @@ void draw_hud() {
     }
 }
 
-Texture2D loadTextureFromImage(char* filename) {
+Texture2D loadTextureFromImage(const char* filename) {
     char path[256];
     sprintf(path, "./assets/%s", filename);
     Image image = LoadImage(path);
@@ -905,7 +905,7 @@ Texture2D loadTextureFromImage(char* filename) {
     return texture;
 }
 
-Texture2D loadTextureFromImageResized(char* filename, int newWidth, int newHeight) {
+Texture2D loadTextureFromImageResized(const char* filename, int newWidth, int newHeight) {
     char path[256];
     sprintf(path, "./assets/%s", filename);
     Image image = LoadImage(path);
@@ -929,18 +929,18 @@ void init(void) {
     shards.members = resize(&shards, shards.members, sizeof(Shard));
 
     inventory = (Inventory) {};
-    inventory.defense_items[DEFENSE_SLOW-DEFENSE_FIRST] = (DefenseItem){
+    inventory.defense_items[DEFENSE_TYPE_1-DEFENSE_FIRST] = (DefenseItem){
         .is_unlocked=true, 
-        .type=DEFENSE_SLOW, 
+        .type=DEFENSE_TYPE_1, 
         .charging_cadence_seconds=4,
         .last_dispensed=GetTime() - 5,
         .wait_time_per_dispense_seconds=5,
         .projectile_type=PROJECTILE_TYPE_1,
         .damage=30,
     };
-    inventory.defense_items[DEFENSE_FAST-DEFENSE_FIRST] = (DefenseItem){
+    inventory.defense_items[DEFENSE_TYPE_2-DEFENSE_FIRST] = (DefenseItem){
         .is_unlocked=true, 
-        .type=DEFENSE_FAST, 
+        .type=DEFENSE_TYPE_2, 
         .charging_cadence_seconds=8,
         .last_dispensed=GetTime() - 10,
         .wait_time_per_dispense_seconds=10,
@@ -987,9 +987,9 @@ int main(void){
     init();
 
     SetConfigFlags(FLAG_VSYNC_HINT);
-    // SetConfigFlags(FLAG_WINDOW_RESIZABLE);
-    // SetConfigFlags(FLAG_FULLSCREEN_MODE);
+    SetConfigFlags(FLAG_FULLSCREEN_MODE);
     SetTraceLogLevel(LOG_NONE);
+    // SetConfigFlags(FLAG_WINDOW_RESIZABLE);
    
     SetTargetFPS(30);
     InitWindow(0, 0, "blockwave");
@@ -1027,10 +1027,10 @@ int main(void){
     ALL_TEXTURES[TEXTURE_WHITE_BLOCK_OVERLAY] = LoadTextureFromImage(image);
     UnloadImage(image);
 
-    GAME_OBJECT_TEXTURES[ENEMY_SLOW] = ALL_TEXTURES[TEXTURE_ENEMY_TYPE_1];
-    GAME_OBJECT_TEXTURES[ENEMY_FAST] = ALL_TEXTURES[TEXTURE_ENEMY_TYPE_2];
-    GAME_OBJECT_TEXTURES[DEFENSE_SLOW] = ALL_TEXTURES[TEXTURE_DEFENDER_TYPE_1];
-    GAME_OBJECT_TEXTURES[DEFENSE_FAST] = ALL_TEXTURES[TEXTURE_DEFENDER_TYPE_2];
+    GAME_OBJECT_TEXTURES[ENEMY_TYPE_1] = ALL_TEXTURES[TEXTURE_ENEMY_TYPE_1];
+    GAME_OBJECT_TEXTURES[ENEMY_TYPE_2] = ALL_TEXTURES[TEXTURE_ENEMY_TYPE_2];
+    GAME_OBJECT_TEXTURES[DEFENSE_TYPE_1] = ALL_TEXTURES[TEXTURE_DEFENDER_TYPE_1];
+    GAME_OBJECT_TEXTURES[DEFENSE_TYPE_2] = ALL_TEXTURES[TEXTURE_DEFENDER_TYPE_2];
     GAME_OBJECT_TEXTURES[DEFENSE_TYPE_3] = ALL_TEXTURES[TEXTURE_DEFENDER_TYPE_3];
     GAME_OBJECT_TEXTURES[PROJECTILE_TYPE_1] = ALL_TEXTURES[TEXTURE_PROJECTILE_1];
     GAME_OBJECT_TEXTURES[PROJECTILE_TYPE_2] = ALL_TEXTURES[TEXTURE_PROJECTILE_2];
