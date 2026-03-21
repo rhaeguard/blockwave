@@ -14,7 +14,7 @@
 #define DEBUG 1
 #define DEBUG_PRINT if (DEBUG) printf
 #define DRAW_GRID_BOUNDING_BOX if (false)
-#define ADD_ENEMIES if (false)
+#define ADD_ENEMIES if (true)
 
 // this macro assume the 'isometric_view_compare_vec2' function is declared when it is used
 #define COMPARE_FUNC(T) \
@@ -129,6 +129,7 @@ enum TextureIds {
     TEXTURE_GROUND_PAVEMENT,
     TEXTURE_GROUND_SAND,
     TEXTURE_GROUND_SAND_TREADED,
+    TEXTURE_GROUND_TARGET,
     TEXTURE_GROUND_WATER,
     TEXTURE_GROUND_WATER_FLIP,
     TEXTURE_MOUSEOVER,
@@ -179,6 +180,7 @@ enum GridCellType {
     PAVEMENT,
     WATER,
     NONE,
+    TARGET,
 };
 
 typedef struct GridCell {
@@ -789,6 +791,9 @@ void draw_game_elements() {
             } else if (cell.type == SAND) {
                 ground_texture = &ALL_TEXTURES[TEXTURE_GROUND_SAND];
                 treaded_texture = &ALL_TEXTURES[TEXTURE_GROUND_SAND_TREADED];
+            } else if (cell.type == TARGET) {
+                ground_texture = &ALL_TEXTURES[TEXTURE_GROUND_TARGET];
+                treaded_texture = &ALL_TEXTURES[TEXTURE_GROUND_TARGET];
             } else if (cell.type == WATER) {
                 if ((int)(GetTime()) % 2 == 0) {
                     ground_texture = &ALL_TEXTURES[TEXTURE_GROUND_WATER];
@@ -1041,13 +1046,14 @@ void init_grid(void) {
         }
     }
 
-    Image image = LoadImage("./assets/Levels/lvl0.png");
+    Image image = LoadImage("./assets/Levels/lvl-30x30.png");
     Color* colors = LoadImageColors(image);
     Color COLOR_SAND = (Color){ 255, 125, 0, 255 };
     Color COLOR_WATER = (Color){ 0, 0, 255, 255 };
     Color COLOR_PAVEMENT = (Color){ 133, 133, 133, 255 };
     Color COLOR_GRASS = (Color){ 0, 255, 0, 255 };
     Color COLOR_EMPTY = (Color){ 255, 255, 255, 0 };
+    Color COLOR_TARGET = (Color) {255, 255, 0, 255};
     
     for (uint16_t y = 0; y < grid.height; y++) {
         for (uint16_t x = 0; x < grid.width; x++) {
@@ -1063,8 +1069,10 @@ void init_grid(void) {
                 cell->type = GRASS;
             } else if (colors_equal(color, COLOR_EMPTY)) {
                 cell->type = NONE;
+            } else if (colors_equal(color, COLOR_TARGET)) {
+                cell->type = TARGET;
             } else {
-                DEBUG_PRINT("UNKNOWN COLOR! %d - %d - %d - %d\n", color.r, color.g, color.b, color.a);
+                DEBUG_PRINT("UNKNOWN COLOR! {%d, %d, %d, %d}\n", color.r, color.g, color.b, color.a);
                 exit(EXIT_FAILURE);
             }
         }
@@ -1105,6 +1113,7 @@ int main(void){
     ALL_TEXTURES[TEXTURE_GROUND_PAVEMENT] = loadTextureFromImage("Blocks/blocks_56.png");
     ALL_TEXTURES[TEXTURE_GROUND_SAND] = loadTextureFromImage("Blocks/blocks_32.png");
     ALL_TEXTURES[TEXTURE_GROUND_SAND_TREADED] = loadTextureFromImage("Blocks/blocks_32_treaded.png");
+    ALL_TEXTURES[TEXTURE_GROUND_TARGET] = loadTextureFromImage("Blocks/blocks_100.png");
     ALL_TEXTURES[TEXTURE_GROUND_WATER] = loadTextureFromImage("Blocks/blocks_69.png");
     ALL_TEXTURES[TEXTURE_GROUND_WATER_FLIP] = loadTextureFromImageFlip("Blocks/blocks_69.png");
     ALL_TEXTURES[TEXTURE_MOUSEOVER] = loadTextureFromImage("Blocks/blocks_99.png");
