@@ -30,6 +30,7 @@ int compare##T(const void* a, const void* b) {  \
 
 #define vec2(xx,yy) ((Vector2) {.x=xx, .y=yy})
 #define rect(xx,yy,w,h) ((Rectangle) {.x=xx, .y=yy, .width=w, .height=h})
+#define grid_cell_at(x,y) grid.cells[y*grid.width+x]
 
 float TILE_WIDTH = 64;
 float TILE_HEIGHT = 32;
@@ -170,6 +171,23 @@ typedef struct HUD {
     Color bg_color;
 } HUD;
 
+enum GridCellType {
+    GRASS,
+    SAND,
+    PAVEMENT,
+};
+
+typedef struct GridCell {
+    enum GridCellType type;
+    bool is_treaded_by_enemy;
+} GridCell;
+
+typedef struct Grid {
+    uint16_t width;
+    uint16_t height;
+    GridCell* cells; // 2D array of cells
+} Grid;
+
 // returns a random float between [0, 1]
 static inline float get_random_float() {
     float r = (float)rand() / (float)RAND_MAX;
@@ -297,6 +315,7 @@ void* resize(void* container_ptr, void* objects, size_t object_size) {
 }
 
 /* global variables start */
+Grid grid;
 Inventory inventory;
 HUD hud;
 Enemies enemies;
@@ -402,7 +421,7 @@ void add_enemy(Vector2 grid_coord, enum EnemyType type) {
 
     // movement related parameters
     enemy->start_grid_coord = vec2(0, grid_coord.y);
-    enemy->target_grid_coord = vec2(GRID_WIDTH-1, grid_coord.y);
+    enemy->target_grid_coord = vec2(grid.width-1, grid_coord.y);
     enemy->move_pct = 0.0;
     enemy->life = 100; // will be different by the enemy type
 
@@ -510,9 +529,10 @@ void process_user_input() {
             int mpx = mouse_position_on_grid.x;
             int mpy = mouse_position_on_grid.y;
             
-            if (mpx >= 0 && mpx < GRID_WIDTH && mpy >= 0 && mpy < GRID_HEIGHT) {
+            if (mpx >= 0 && mpx < grid.width && mpy >= 0 && mpy < grid.height) {
                 // TODO: this is hardcoded boundary check so that we cannot add defense in the sand or concrete; needs to be removed once we have dynamic maps
-                if (mpx > 5 && mpx < GRID_WIDTH - 2) {
+                GridCell cell = grid_cell_at(mpx, mpy);
+                if (cell.type == GRASS) {
                     if (hud.selected_box_index != -1) {
                         enum DefenseType type = inventory.defense_items[hud.selected_box_index].type;
                         add_defense(mouse_position_on_grid, type);
@@ -546,7 +566,7 @@ void update() {
     {// keep enemy count consistent
         for (uint32_t i=0; i < 3-enemies.count; i++) {
             while (true) {
-                int y = rand() % GRID_HEIGHT;
+                int y = rand() % grid.height;
                 
                 bool is_slot_occupied = false;
                 for (uint32_t i=0; i < enemies.count; i++) {
@@ -739,8 +759,8 @@ void draw_game_elements() {
     float miny = INT_MAX;
     float maxx = INT_MIN;
     float maxy = INT_MIN;
-    for (int y = 0; y < GRID_HEIGHT; y++){
-        for (int x = 0; x < GRID_WIDTH; x++){
+    for (int y = 0; y < grid.height; y++){
+        for (int x = 0; x < grid.width; x++){
             Vector2 grid_coords = vec2(x, y);
             Vector2 screen_coords = to_screen_coords(grid_coords);
             
@@ -757,9 +777,11 @@ void draw_game_elements() {
             Texture2D* ground_texture = &ALL_TEXTURES[TEXTURE_GROUND_GRASS];
             Texture2D* treaded_texture = &ALL_TEXTURES[TEXTURE_GROUND_GRASS_TREADED];
 
-            if (x >= GRID_WIDTH - 2) {
+            GridCell cell = grid_cell_at(x, y);
+
+            if (cell.type == PAVEMENT) {
                 ground_texture = &ALL_TEXTURES[TEXTURE_GROUND_PAVEMENT];
-            } else if (x <= 5) {
+            } else if (cell.type == SAND) {
                 ground_texture = &ALL_TEXTURES[TEXTURE_GROUND_SAND];
                 treaded_texture = &ALL_TEXTURES[TEXTURE_GROUND_SAND_TREADED];
             }
@@ -773,8 +795,8 @@ void draw_game_elements() {
             int mpx = mouse_position_on_grid.x;
             int mpy = mouse_position_on_grid.y;
 
-            if (mpy == y && mpx >= 0 && mpx < GRID_WIDTH) {
-                if (mpx == x && (x > 5 && x < GRID_WIDTH - 2)) {
+            if (mpy == y && mpx >= 0 && mpx < grid.width) {
+                if (mpx == x && cell.type == GRASS) {
                     DrawTextureV(ALL_TEXTURES[TEXTURE_MOUSEOVER], screen_coords, WHITE);
                 }
                 DrawTextureV(ALL_TEXTURES[TEXTURE_WHITE_FULL_OVERLAY], screen_coords, WHITE);
@@ -966,8 +988,31 @@ void init_hud(void) {
     };
 }
 
+void init_grid(void) {
+    grid = (Grid) {0};
+    grid.width = GRID_WIDTH;
+    grid.height = GRID_HEIGHT;
+    grid.cells = malloc(sizeof(GridCell) * grid.height * grid.width);
+
+    for (uint16_t r = 0; r < grid.height; r++) {
+        for (uint16_t c = 0; c < grid.width; c++) {
+            uint16_t ix = r*grid.width + c;
+            grid.cells[ix].is_treaded_by_enemy=false;
+            if (c <= 5) {
+                grid.cells[ix].type = SAND;
+            } else if (c >= grid.width - 2) {
+                grid.cells[ix].type = PAVEMENT;
+            } else {
+                grid.cells[ix].type = GRASS;
+            }
+        }
+    }
+}
+
 int main(void){
     srand(time(NULL));
+
+    init_grid();
 
     init();
 
@@ -986,9 +1031,9 @@ int main(void){
     TILE_HEIGHT = (32.0 * screen_height) / 1440;
     TILE_WIDTH = 2 * TILE_HEIGHT;
 
-    float iso_width = (GRID_HEIGHT + GRID_WIDTH) * (TILE_WIDTH / 2.0);
-    float iso_height = (GRID_HEIGHT + GRID_WIDTH) * (TILE_HEIGHT / 2);
-    HORIZONTAL_OFFSET = (screen_width - iso_width) / 2.0 + GRID_HEIGHT * TILE_WIDTH / 2.0;
+    float iso_width = (grid.height + grid.width) * (TILE_WIDTH / 2.0);
+    float iso_height = (grid.height + grid.width) * (TILE_HEIGHT / 2);
+    HORIZONTAL_OFFSET = (screen_width - iso_width) / 2.0 + grid.height * TILE_WIDTH / 2.0;
     VERTICAL_OFFSET = (screen_height - iso_height) / 2.0;
 
     ALL_TEXTURES[TEXTURE_GROUND_GRASS] = loadTextureFromImage("Blocks/blocks_1.png");
@@ -1046,6 +1091,8 @@ int main(void){
         DEBUG_PRINT("freed projectiles\n");
         free(shards.members);
         DEBUG_PRINT("freed shards\n");
+        free(grid.cells);
+        DEBUG_PRINT("freed grid cells\n");
         
         DEBUG_PRINT("unloading textures...\n");
         for(uint8_t i=0; i<TEXTURE_COUNT; i++) {
