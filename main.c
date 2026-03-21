@@ -14,6 +14,7 @@
 #define DEBUG_PRINT if (DEBUG) printf
 #define DRAW_GRID_BOUNDING_BOX if (false)
 
+// this macro assume the 'isometric_view_compare_vec2' function is declared when it is used
 #define COMPARE_FUNC(T) \
 int compare##T(const void* a, const void* b) {  \
     T* o1 = ( (T*) a );                         \
@@ -27,6 +28,7 @@ int compare##T(const void* a, const void* b) {  \
 
 #define vec2(xx,yy) ((Vector2) {.x=xx, .y=yy})
 #define rect(xx,yy,w,h) ((Rectangle) {.x=xx, .y=yy, .width=w, .height=h})
+// this macro assume the 'grid' variable is declared when it is used
 #define grid_cell_at(x,y) grid.cells[y*grid.width+x]
 
 float TILE_WIDTH = 64;
