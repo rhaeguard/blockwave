@@ -612,6 +612,7 @@ void update() {
         int collided_object_pos = check_enemy_defense_collision(defense);
 
         if (collided_object_pos != -1) {
+            // TODO: defense object dies if it's put behind a living enemy even though it's not on the line of direct attack
             defense->life = 0;
             remove_count += 1;
 
@@ -917,10 +918,10 @@ void init(void) {
         .is_unlocked=true, 
         .type=DEFENSE_TYPE_1, 
         .charging_cadence_seconds=4,
-        .last_dispensed=GetTime() - 5,
-        .wait_time_per_dispense_seconds=5,
+        .last_dispensed=GetTime() - 1.5,
+        .wait_time_per_dispense_seconds=1.5,
         .projectile_type=PROJECTILE_TYPE_1,
-        .damage=30,
+        .damage=10,
     };
     inventory.defense_items[DEFENSE_TYPE_2-DEFENSE_FIRST] = (DefenseItem){
         .is_unlocked=true, 
@@ -1003,7 +1004,7 @@ int main(void){
     ALL_TEXTURES[TEXTURE_DEFENDER_TYPE_1] = loadTextureFromImage("Blocks/blocks_24.png");
     ALL_TEXTURES[TEXTURE_DEFENDER_TYPE_2] = loadTextureFromImage("Blocks/blocks_58.png");
     ALL_TEXTURES[TEXTURE_DEFENDER_TYPE_3] = loadTextureFromImage("Blocks/blocks_14.png");
-    ALL_TEXTURES[TEXTURE_PROJECTILE_1] = loadTextureFromImageResized("Custom/projectile_blue.png", TILE_WIDTH / 2, TILE_WIDTH / 2);
+    ALL_TEXTURES[TEXTURE_PROJECTILE_1] = loadTextureFromImageResized("Custom/projectile_blue.png", TILE_WIDTH / 4, TILE_WIDTH / 4);
     ALL_TEXTURES[TEXTURE_PROJECTILE_2] = loadTextureFromImageResized("Custom/projectile_orange.png", TILE_WIDTH / 2, TILE_WIDTH / 2);
     ALL_TEXTURES[TEXTURE_PROJECTILE_3] = loadTextureFromImageResized("Custom/projectile_red.png", TILE_WIDTH / 2, TILE_WIDTH / 2);
 
