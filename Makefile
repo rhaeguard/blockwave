@@ -40,3 +40,7 @@ raylib:
 
 valgrind:
 	valgrind --track-origins=yes --leak-check=full --show-leak-kinds=definite $(GAME_NAME)
+
+todo:
+# rg=ripgrep
+	rg -oinH --max-depth=1 --no-heading --hyperlink-format=vscode "(TODO:.+)" -g *.c

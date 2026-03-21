@@ -33,7 +33,7 @@ int compare##T(const void* a, const void* b) {  \
 
 float TILE_WIDTH = 64;
 float TILE_HEIGHT = 32;
-// TODO: might need a better data structure
+// TODO: we need a better data structure to indicate enemy-treaded cells
 float enemy_treaded_positions[GRID_HEIGHT] = {0.0};
 float VERTICAL_OFFSET;
 float HORIZONTAL_OFFSET;
@@ -282,7 +282,7 @@ void shard_draw(const Shard* shard) {
 }
 // Shards end
 
-// TODO: add downsizing
+// TODO: add downsizing to dynamic containers
 void* resize(void* container_ptr, void* objects, size_t object_size) {
     SizedContainer* container = (SizedContainer*) container_ptr;
     if (container->count >= container->capacity) {
