@@ -1014,6 +1014,13 @@ void init_hud(void) {
     };
 }
 
+static inline bool colors_equal(Color a, Color b) {
+    return (a.r == b.r) &&
+           (a.g == b.g) &&
+           (a.b == b.b) &&
+           (a.a == b.a);
+}
+
 void init_grid(void) {
     grid = (Grid) {0};
     grid.width = 30;
@@ -1033,53 +1040,43 @@ void init_grid(void) {
             }
         }
     }
-}
 
-bool colors_equal(Color a, Color b) {
-    return (a.r == b.r) &&
-           (a.g == b.g) &&
-           (a.b == b.b) &&
-           (a.a == b.a);
+    Image image = LoadImage("./assets/Levels/lvl0.png");
+    Color* colors = LoadImageColors(image);
+    Color COLOR_SAND = (Color){ 255, 125, 0, 255 };
+    Color COLOR_WATER = (Color){ 0, 0, 255, 255 };
+    Color COLOR_PAVEMENT = (Color){ 133, 133, 133, 255 };
+    Color COLOR_GRASS = (Color){ 0, 255, 0, 255 };
+    Color COLOR_EMPTY = (Color){ 255, 255, 255, 0 };
+    
+    for (uint16_t y = 0; y < grid.height; y++) {
+        for (uint16_t x = 0; x < grid.width; x++) {
+            Color color = colors[y * grid.width + x];
+            GridCell* cell = &grid_cell_at(x, y);
+            if (colors_equal(color, COLOR_SAND)) {
+                cell->type = SAND;
+            } else if (colors_equal(color, COLOR_WATER)) {
+                cell->type = WATER;
+            } else if (colors_equal(color, COLOR_PAVEMENT)) {
+                cell->type = PAVEMENT;
+            } else if (colors_equal(color, COLOR_GRASS)) {
+                cell->type = GRASS;
+            } else if (colors_equal(color, COLOR_EMPTY)) {
+                cell->type = NONE;
+            } else {
+                DEBUG_PRINT("UNKNOWN COLOR! %d - %d - %d - %d\n", color.r, color.g, color.b, color.a);
+                exit(EXIT_FAILURE);
+            }
+        }
+    }
+
+    UnloadImageColors(colors);
+    UnloadImage(image);
 }
 
 int main(void){
     srand(time(NULL));
     init_grid();
-
-    {
-        Image image = LoadImage("./assets/Levels/lvl0.png");
-        Color* colors = LoadImageColors(image);
-        Color COLOR_SAND = (Color){ 255, 125, 0, 255 };
-        Color COLOR_WATER = (Color){ 0, 0, 255, 255 };
-        Color COLOR_PAVEMENT = (Color){ 133, 133, 133, 255 };
-        Color COLOR_GRASS = (Color){ 0, 255, 0, 255 };
-        Color COLOR_EMPTY = (Color){ 255, 255, 255, 0 };
-        
-        for (uint16_t y = 0; y < grid.height; y++) {
-            for (uint16_t x = 0; x < grid.width; x++) {
-                Color color = colors[y * grid.width + x];
-                GridCell* cell = &grid_cell_at(x, y);
-                if (colors_equal(color, COLOR_SAND)) {
-                    cell->type = SAND;
-                } else if (colors_equal(color, COLOR_WATER)) {
-                    cell->type = WATER;
-                } else if (colors_equal(color, COLOR_PAVEMENT)) {
-                    cell->type = PAVEMENT;
-                } else if (colors_equal(color, COLOR_GRASS)) {
-                    cell->type = GRASS;
-                } else if (colors_equal(color, COLOR_EMPTY)) {
-                    cell->type = NONE;
-                } else {
-                    DEBUG_PRINT("here color %d - %d - %d - %d\n", color.r, color.g, color.b, color.a);
-                    return 10;
-                }
-            }
-        }
-
-        UnloadImageColors(colors);
-        UnloadImage(image);
-        // return 0;
-    }
 
     init();
 
