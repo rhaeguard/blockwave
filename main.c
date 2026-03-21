@@ -10,9 +10,6 @@
 #include "raymath.h"
 #include <time.h>
 
-#define GRID_WIDTH 30
-#define GRID_HEIGHT 10
-
 #define DEBUG 1
 #define DEBUG_PRINT if (DEBUG) printf
 #define DRAW_GRID_BOUNDING_BOX if (false)
@@ -35,7 +32,6 @@ int compare##T(const void* a, const void* b) {  \
 float TILE_WIDTH = 64;
 float TILE_HEIGHT = 32;
 // TODO: we need a better data structure to indicate enemy-treaded cells
-float enemy_treaded_positions[GRID_HEIGHT] = {0.0};
 float VERTICAL_OFFSET;
 float HORIZONTAL_OFFSET;
 Vector2 DUMMY_REFERENCE = {.x=99999, .y=99999};
@@ -617,8 +613,8 @@ void update() {
 
         // make note of the paths they have treaded
         int y_pos = (int)ceilf(enemy->current_grid_coord.y);
-        Vector2 grid_coords = Vector2Lerp(enemy->start_grid_coord, enemy->target_grid_coord, enemy->move_pct);
-        enemy_treaded_positions[y_pos] = fmaxf(grid_coords.x, enemy_treaded_positions[y_pos]);
+        int x_pos = (int)Clamp(interpolated_grid_coord.x, 0, interpolated_grid_coord.x);
+        grid_cell_at(x_pos, y_pos).is_treaded_by_enemy = true;
     }
 
     qsort(enemies.members, enemies.count, sizeof(Enemy), compareEnemy);
@@ -774,19 +770,20 @@ void draw_game_elements() {
                 if (yy > maxy) {maxy = yy;}
             }
 
+            GridCell cell = grid_cell_at(x, y);
+            
             Texture2D* ground_texture = &ALL_TEXTURES[TEXTURE_GROUND_GRASS];
             Texture2D* treaded_texture = &ALL_TEXTURES[TEXTURE_GROUND_GRASS_TREADED];
 
-            GridCell cell = grid_cell_at(x, y);
-
             if (cell.type == PAVEMENT) {
                 ground_texture = &ALL_TEXTURES[TEXTURE_GROUND_PAVEMENT];
+                treaded_texture = &ALL_TEXTURES[TEXTURE_GROUND_PAVEMENT];
             } else if (cell.type == SAND) {
                 ground_texture = &ALL_TEXTURES[TEXTURE_GROUND_SAND];
                 treaded_texture = &ALL_TEXTURES[TEXTURE_GROUND_SAND_TREADED];
             }
 
-            if (enemy_treaded_positions[y] > x) {
+            if (cell.is_treaded_by_enemy) {
                 DrawTextureV(*treaded_texture, screen_coords, WHITE);
             } else {
                 DrawTextureV(*ground_texture, screen_coords, WHITE);
@@ -990,8 +987,8 @@ void init_hud(void) {
 
 void init_grid(void) {
     grid = (Grid) {0};
-    grid.width = GRID_WIDTH;
-    grid.height = GRID_HEIGHT;
+    grid.width = 30;
+    grid.height = 10;
     grid.cells = malloc(sizeof(GridCell) * grid.height * grid.width);
 
     for (uint16_t r = 0; r < grid.height; r++) {
