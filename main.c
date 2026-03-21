@@ -6,6 +6,7 @@
 #include <math.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include "external/raylib/src/raylib.h"
 #include "raylib.h"
 #include "raymath.h"
 #include <time.h>
@@ -13,6 +14,7 @@
 #define DEBUG 1
 #define DEBUG_PRINT if (DEBUG) printf
 #define DRAW_GRID_BOUNDING_BOX if (false)
+#define ADD_ENEMIES if (false)
 
 // this macro assume the 'isometric_view_compare_vec2' function is declared when it is used
 #define COMPARE_FUNC(T) \
@@ -29,7 +31,7 @@ int compare##T(const void* a, const void* b) {  \
 #define vec2(xx,yy) ((Vector2) {.x=xx, .y=yy})
 #define rect(xx,yy,w,h) ((Rectangle) {.x=xx, .y=yy, .width=w, .height=h})
 // this macro assume the 'grid' variable is declared when it is used
-#define grid_cell_at(x,y) grid.cells[y*grid.width+x]
+#define grid_cell_at(x,y) (grid.cells[y*grid.width+x])
 
 float TILE_WIDTH = 64;
 float TILE_HEIGHT = 32;
@@ -127,6 +129,8 @@ enum TextureIds {
     TEXTURE_GROUND_PAVEMENT,
     TEXTURE_GROUND_SAND,
     TEXTURE_GROUND_SAND_TREADED,
+    TEXTURE_GROUND_WATER,
+    TEXTURE_GROUND_WATER_FLIP,
     TEXTURE_MOUSEOVER,
     TEXTURE_WHITE_FULL_OVERLAY,
     TEXTURE_WHITE_HALF_OVERLAY,
@@ -173,6 +177,8 @@ enum GridCellType {
     GRASS,
     SAND,
     PAVEMENT,
+    WATER,
+    NONE,
 };
 
 typedef struct GridCell {
@@ -561,7 +567,7 @@ void process_user_input() {
 void update() {
     float delta_time = GetFrameTime();
 
-    {// keep enemy count consistent
+    ADD_ENEMIES {// keep enemy count consistent
         for (uint32_t i=0; i < 3-enemies.count; i++) {
             while (true) {
                 int y = rand() % grid.height;
@@ -783,6 +789,17 @@ void draw_game_elements() {
             } else if (cell.type == SAND) {
                 ground_texture = &ALL_TEXTURES[TEXTURE_GROUND_SAND];
                 treaded_texture = &ALL_TEXTURES[TEXTURE_GROUND_SAND_TREADED];
+            } else if (cell.type == WATER) {
+                if ((int)(GetTime()) % 2 == 0) {
+                    ground_texture = &ALL_TEXTURES[TEXTURE_GROUND_WATER];
+                    treaded_texture = &ALL_TEXTURES[TEXTURE_GROUND_WATER];
+                } else {
+                    ground_texture = &ALL_TEXTURES[TEXTURE_GROUND_WATER_FLIP];
+                    treaded_texture = &ALL_TEXTURES[TEXTURE_GROUND_WATER_FLIP];
+                }
+            } else if (cell.type == NONE) {
+                // do not render if the cell is of none type
+                continue;
             }
 
             if (cell.is_treaded_by_enemy) {
@@ -916,6 +933,16 @@ Texture2D loadTextureFromImageResized(const char* filename, int newWidth, int ne
     return texture;
 }
 
+Texture2D loadTextureFromImageFlip(const char* filename) {
+    char path[256];
+    sprintf(path, "./assets/%s", filename);
+    Image image = LoadImage(path);
+    ImageFlipHorizontal(&image);
+    Texture2D texture = LoadTextureFromImage(image);
+    UnloadImage(image);
+    return texture;
+}
+
 static inline Texture2D loadTextureFromImage(const char* filename) {
     return loadTextureFromImageResized(filename, TILE_WIDTH, TILE_WIDTH);
 }
@@ -990,7 +1017,7 @@ void init_hud(void) {
 void init_grid(void) {
     grid = (Grid) {0};
     grid.width = 30;
-    grid.height = 10;
+    grid.height = 30;
     grid.cells = malloc(sizeof(GridCell) * grid.height * grid.width);
 
     for (uint16_t r = 0; r < grid.height; r++) {
@@ -1008,10 +1035,51 @@ void init_grid(void) {
     }
 }
 
+bool colors_equal(Color a, Color b) {
+    return (a.r == b.r) &&
+           (a.g == b.g) &&
+           (a.b == b.b) &&
+           (a.a == b.a);
+}
+
 int main(void){
     srand(time(NULL));
-
     init_grid();
+
+    {
+        Image image = LoadImage("./assets/Levels/lvl0.png");
+        Color* colors = LoadImageColors(image);
+        Color COLOR_SAND = (Color){ 255, 125, 0, 255 };
+        Color COLOR_WATER = (Color){ 0, 0, 255, 255 };
+        Color COLOR_PAVEMENT = (Color){ 133, 133, 133, 255 };
+        Color COLOR_GRASS = (Color){ 0, 255, 0, 255 };
+        Color COLOR_EMPTY = (Color){ 255, 255, 255, 0 };
+        
+        for (uint16_t y = 0; y < grid.height; y++) {
+            for (uint16_t x = 0; x < grid.width; x++) {
+                Color color = colors[y * grid.width + x];
+                GridCell* cell = &grid_cell_at(x, y);
+                if (colors_equal(color, COLOR_SAND)) {
+                    cell->type = SAND;
+                } else if (colors_equal(color, COLOR_WATER)) {
+                    cell->type = WATER;
+                } else if (colors_equal(color, COLOR_PAVEMENT)) {
+                    cell->type = PAVEMENT;
+                } else if (colors_equal(color, COLOR_GRASS)) {
+                    cell->type = GRASS;
+                } else if (colors_equal(color, COLOR_EMPTY)) {
+                    cell->type = NONE;
+                } else {
+                    DEBUG_PRINT("here color %d - %d - %d - %d\n", color.r, color.g, color.b, color.a);
+                    return 10;
+                }
+            }
+        }
+
+        UnloadImageColors(colors);
+        UnloadImage(image);
+        // return 0;
+    }
 
     init();
 
@@ -1040,6 +1108,8 @@ int main(void){
     ALL_TEXTURES[TEXTURE_GROUND_PAVEMENT] = loadTextureFromImage("Blocks/blocks_56.png");
     ALL_TEXTURES[TEXTURE_GROUND_SAND] = loadTextureFromImage("Blocks/blocks_32.png");
     ALL_TEXTURES[TEXTURE_GROUND_SAND_TREADED] = loadTextureFromImage("Blocks/blocks_32_treaded.png");
+    ALL_TEXTURES[TEXTURE_GROUND_WATER] = loadTextureFromImage("Blocks/blocks_69.png");
+    ALL_TEXTURES[TEXTURE_GROUND_WATER_FLIP] = loadTextureFromImageFlip("Blocks/blocks_69.png");
     ALL_TEXTURES[TEXTURE_MOUSEOVER] = loadTextureFromImage("Blocks/blocks_99.png");
     ALL_TEXTURES[TEXTURE_WHITE_FULL_OVERLAY] = loadTextureFromImage("Blocks/overlay.png");
     ALL_TEXTURES[TEXTURE_WHITE_HALF_OVERLAY] = loadTextureFromImage("Blocks/half_overlay.png");
@@ -1064,6 +1134,8 @@ int main(void){
     GAME_OBJECT_TEXTURES[PROJECTILE_TYPE_1] = ALL_TEXTURES[TEXTURE_PROJECTILE_1];
     GAME_OBJECT_TEXTURES[PROJECTILE_TYPE_2] = ALL_TEXTURES[TEXTURE_PROJECTILE_2];
     GAME_OBJECT_TEXTURES[PROJECTILE_TYPE_3] = ALL_TEXTURES[TEXTURE_PROJECTILE_3];
+
+    
 
     init_hud();
 
