@@ -60,11 +60,10 @@ enum EnemyType {
 };
 
 typedef struct Enemy {
-    Vector2 start_grid_coord;
-    Vector2 target_grid_coord;
     Vector2 current_grid_coord;
     Vector2 current_screen_coord;
-    float move_pct; // progress till dest
+    Vector2 direction;
+    Vector2 distance_per_second;
     float life;
     enum EnemyType type;
 } Enemy;
@@ -127,6 +126,7 @@ enum TextureIds {
     TEXTURE_GROUND_GRASS,
     TEXTURE_GROUND_GRASS_TREADED,
     TEXTURE_GROUND_PAVEMENT,
+    TEXTURE_GROUND_PAVEMENT_TREADED,
     TEXTURE_GROUND_SAND,
     TEXTURE_GROUND_SAND_TREADED,
     TEXTURE_GROUND_TARGET,
@@ -144,6 +144,7 @@ enum TextureIds {
     TEXTURE_PROJECTILE_1,
     TEXTURE_PROJECTILE_2,
     TEXTURE_PROJECTILE_3,
+    TEXTURE_RED,
     TEXTURE_COUNT
 };
 
@@ -185,7 +186,7 @@ enum GridCellType {
 
 typedef struct GridCell {
     enum GridCellType type;
-    bool is_treaded_by_enemy;
+    Vector2 tread_direction;
 } GridCell;
 
 typedef struct Grid {
@@ -426,9 +427,14 @@ void add_enemy(Vector2 grid_coord, enum EnemyType type) {
     enemy->type = type;
 
     // movement related parameters
-    enemy->start_grid_coord = vec2(0, grid_coord.y);
-    enemy->target_grid_coord = vec2(grid.width-1, grid_coord.y);
-    enemy->move_pct = 0.0;
+    if (type == ENEMY_TYPE_1) {
+        enemy->distance_per_second = vec2(0.03, 0.03);
+    } else if (type == ENEMY_TYPE_2) {
+        enemy->distance_per_second = vec2(0.05, 0.05);
+    } else {
+        enemy->distance_per_second = vec2(0.00, 0.00);
+    }
+    enemy->direction = vec2(1, 0);
     enemy->life = 100; // will be different by the enemy type
 
     enemy->current_grid_coord = grid_coord;
@@ -570,7 +576,7 @@ void update() {
     float delta_time = GetFrameTime();
 
     ADD_ENEMIES {// keep enemy count consistent
-        for (uint32_t i=0; i < 3-enemies.count; i++) {
+        for (uint32_t i=0; i < 1-enemies.count; i++) {
             while (true) {
                 int y = rand() % grid.height;
                 
@@ -600,31 +606,46 @@ void update() {
         if (enemy->life <= 0) {
             remove_count++;
             continue;
-        } 
+        }
 
-        float speed = 0;
-
-        if (enemy->type == ENEMY_TYPE_2) {speed = 0.020;}
-        else if (enemy->type == ENEMY_TYPE_1) {speed = 0.010;}
-
-        speed *=1.3;
-
-        enemy->move_pct += speed * delta_time;
-        enemy->move_pct = Clamp(enemy->move_pct, 0, 1);
-        Vector2 interpolated_grid_coord = Vector2Lerp(
-            enemy->start_grid_coord, 
-            enemy->target_grid_coord, 
-            enemy->move_pct
+        // grid.dimension * enemy.distance_per_second * delta_time * enemy.direction
+        Vector2 delta_distance = Vector2Multiply(
+            Vector2Scale(
+                Vector2Multiply(enemy->distance_per_second, vec2(grid.width, grid.height)), 
+                delta_time
+            ), 
+            enemy->direction
         );
+
+        Vector2 interpolated_grid_coord = Vector2Add(
+            enemy->current_grid_coord, 
+            delta_distance
+        );
+
         enemy->current_screen_coord = to_screen_coords(interpolated_grid_coord);
+
+        int ex = (int)ceilf(interpolated_grid_coord.x);
+        int ey = (int)ceilf(interpolated_grid_coord.y);
+
+        GridCell cell = grid_cell_at(ex, ey);
+
         // this is necessary for depth sorting
-        enemy->current_grid_coord.x = roundf(interpolated_grid_coord.x);
-        enemy->current_grid_coord.y = roundf(interpolated_grid_coord.y);
+        enemy->current_grid_coord.x = Clamp(interpolated_grid_coord.x, 0, grid.width-1);
+        enemy->current_grid_coord.y = Clamp(interpolated_grid_coord.y, 0, grid.height-1);
+
+        if (cell.type == WATER) {
+            enemy->direction.x = 0;
+            enemy->direction.y = -1;
+        } else {
+            enemy->direction.x = 1;
+            enemy->direction.y = 0;
+        }
 
         // make note of the paths they have treaded
         int y_pos = (int)ceilf(enemy->current_grid_coord.y);
         int x_pos = (int)Clamp(interpolated_grid_coord.x, 0, interpolated_grid_coord.x);
-        grid_cell_at(x_pos, y_pos).is_treaded_by_enemy = true;
+        grid_cell_at(x_pos, y_pos).tread_direction = enemy->direction;
+
     }
 
     qsort(enemies.members, enemies.count, sizeof(Enemy), compareEnemy);
@@ -787,7 +808,7 @@ void draw_game_elements() {
 
             if (cell.type == PAVEMENT) {
                 ground_texture = &ALL_TEXTURES[TEXTURE_GROUND_PAVEMENT];
-                treaded_texture = &ALL_TEXTURES[TEXTURE_GROUND_PAVEMENT];
+                treaded_texture = &ALL_TEXTURES[TEXTURE_GROUND_PAVEMENT_TREADED];
             } else if (cell.type == SAND) {
                 ground_texture = &ALL_TEXTURES[TEXTURE_GROUND_SAND];
                 treaded_texture = &ALL_TEXTURES[TEXTURE_GROUND_SAND_TREADED];
@@ -799,6 +820,7 @@ void draw_game_elements() {
                     ground_texture = &ALL_TEXTURES[TEXTURE_GROUND_WATER];
                     treaded_texture = &ALL_TEXTURES[TEXTURE_GROUND_WATER];
                 } else {
+                    // TODO: flipping a texture can be done by using negative width/height using DrawTexturePro
                     ground_texture = &ALL_TEXTURES[TEXTURE_GROUND_WATER_FLIP];
                     treaded_texture = &ALL_TEXTURES[TEXTURE_GROUND_WATER_FLIP];
                 }
@@ -807,9 +829,19 @@ void draw_game_elements() {
                 continue;
             }
 
-            if (cell.is_treaded_by_enemy) {
+            Vector2 tread_dir = cell.tread_direction;
+
+            if (tread_dir.x == 1 && tread_dir.y == 0) {
+                // DOWN
                 DrawTextureV(*treaded_texture, screen_coords, WHITE);
+            } else if (tread_dir.x == 0 && tread_dir.y != 0) {
+                // LEFT or RIGHT
+                Texture texture = *treaded_texture; 
+                DrawTextureV(texture, screen_coords, WHITE);
+                Rectangle source = rect(0, 0, -texture.width, texture.height);
+                DrawTextureRec(texture, source, screen_coords, WHITE);
             } else {
+                // UNTREADED
                 DrawTextureV(*ground_texture, screen_coords, WHITE);
             }
 
@@ -1032,20 +1064,6 @@ void init_grid(void) {
     grid.height = 30;
     grid.cells = malloc(sizeof(GridCell) * grid.height * grid.width);
 
-    for (uint16_t r = 0; r < grid.height; r++) {
-        for (uint16_t c = 0; c < grid.width; c++) {
-            uint16_t ix = r*grid.width + c;
-            grid.cells[ix].is_treaded_by_enemy=false;
-            if (c <= 5) {
-                grid.cells[ix].type = SAND;
-            } else if (c >= grid.width - 2) {
-                grid.cells[ix].type = PAVEMENT;
-            } else {
-                grid.cells[ix].type = GRASS;
-            }
-        }
-    }
-
     Image image = LoadImage("./assets/Levels/lvl-30x30.png");
     Color* colors = LoadImageColors(image);
     Color COLOR_SAND = (Color){ 255, 125, 0, 255 };
@@ -1084,16 +1102,16 @@ void init_grid(void) {
 
 int main(void){
     srand(time(NULL));
-    init_grid();
-
-    init();
-
+    
+    SetTraceLogLevel(LOG_NONE);
     SetConfigFlags(FLAG_VSYNC_HINT);
     SetConfigFlags(FLAG_FULLSCREEN_MODE);
-    SetTraceLogLevel(LOG_NONE);
     // SetConfigFlags(FLAG_WINDOW_RESIZABLE);
-   
     SetTargetFPS(30);
+    
+    init_grid();
+    init();
+
     InitWindow(0, 0, "blockwave");
 
     screen_width = GetScreenWidth();
@@ -1111,6 +1129,7 @@ int main(void){
     ALL_TEXTURES[TEXTURE_GROUND_GRASS] = loadTextureFromImage("Blocks/blocks_1.png");
     ALL_TEXTURES[TEXTURE_GROUND_GRASS_TREADED] = loadTextureFromImage("Blocks/blocks_1_treaded.png");
     ALL_TEXTURES[TEXTURE_GROUND_PAVEMENT] = loadTextureFromImage("Blocks/blocks_56.png");
+    ALL_TEXTURES[TEXTURE_GROUND_PAVEMENT_TREADED] = loadTextureFromImage("Blocks/blocks_56_treaded.png");
     ALL_TEXTURES[TEXTURE_GROUND_SAND] = loadTextureFromImage("Blocks/blocks_32.png");
     ALL_TEXTURES[TEXTURE_GROUND_SAND_TREADED] = loadTextureFromImage("Blocks/blocks_32_treaded.png");
     ALL_TEXTURES[TEXTURE_GROUND_TARGET] = loadTextureFromImage("Blocks/blocks_100.png");
@@ -1127,6 +1146,7 @@ int main(void){
     ALL_TEXTURES[TEXTURE_PROJECTILE_1] = loadTextureFromImageResized("Custom/projectile_blue.png", TILE_WIDTH / 4, TILE_WIDTH / 4);
     ALL_TEXTURES[TEXTURE_PROJECTILE_2] = loadTextureFromImageResized("Custom/projectile_orange.png", TILE_WIDTH / 2, TILE_WIDTH / 2);
     ALL_TEXTURES[TEXTURE_PROJECTILE_3] = loadTextureFromImageResized("Custom/projectile_red.png", TILE_WIDTH / 2, TILE_WIDTH / 2);
+    ALL_TEXTURES[TEXTURE_RED] = loadTextureFromImage("Blocks/blocks_96.png");
 
     Image image = GenImageColor(TILE_WIDTH, TILE_HEIGHT * 2, ColorAlpha(WHITE, 0.5));
     ALL_TEXTURES[TEXTURE_WHITE_BLOCK_OVERLAY] = LoadTextureFromImage(image);
@@ -1140,8 +1160,6 @@ int main(void){
     GAME_OBJECT_TEXTURES[PROJECTILE_TYPE_1] = ALL_TEXTURES[TEXTURE_PROJECTILE_1];
     GAME_OBJECT_TEXTURES[PROJECTILE_TYPE_2] = ALL_TEXTURES[TEXTURE_PROJECTILE_2];
     GAME_OBJECT_TEXTURES[PROJECTILE_TYPE_3] = ALL_TEXTURES[TEXTURE_PROJECTILE_3];
-
-    
 
     init_hud();
 
