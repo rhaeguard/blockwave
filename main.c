@@ -107,7 +107,6 @@ enum TextureIds {
     TEXTURE_GROUND_SAND_TREADED,
     TEXTURE_GROUND_TARGET,
     TEXTURE_GROUND_WATER,
-    TEXTURE_GROUND_WATER_FLIP,
     TEXTURE_MOUSEOVER,
     TEXTURE_WHITE_FULL_OVERLAY,
     TEXTURE_WHITE_HALF_OVERLAY,
@@ -654,14 +653,12 @@ void draw_game_elements() {
                 ground_texture = &ALL_TEXTURES[TEXTURE_GROUND_TARGET];
                 treaded_texture = &ALL_TEXTURES[TEXTURE_GROUND_TARGET];
             } else if (cell.type == WATER) {
-                if ((int)(GetTime()) % 2 == 0) {
-                    ground_texture = &ALL_TEXTURES[TEXTURE_GROUND_WATER];
-                    treaded_texture = &ALL_TEXTURES[TEXTURE_GROUND_WATER];
-                } else {
-                    // TODO: flipping a texture can be done by using negative width/height using DrawTexturePro
-                    ground_texture = &ALL_TEXTURES[TEXTURE_GROUND_WATER_FLIP];
-                    treaded_texture = &ALL_TEXTURES[TEXTURE_GROUND_WATER_FLIP];
-                }
+                int sign = (int)(GetTime()) % 2 == 0 ? -1 : 1;
+                Texture texture = ALL_TEXTURES[TEXTURE_GROUND_WATER]; 
+                DrawTextureV(texture, screen_coords, WHITE);
+                Rectangle source = rect(0, 0, sign * texture.width, texture.height);
+                DrawTextureRec(texture, source, screen_coords, WHITE);
+                continue;
             } else if (cell.type == NONE) {
                 // do not render if the cell is of none type
                 continue;
@@ -918,10 +915,11 @@ int main(void){
 
     SetTraceLogLevel(LOG_NONE);
     SetConfigFlags(FLAG_VSYNC_HINT);
+    SetConfigFlags(FLAG_MSAA_4X_HINT);
     SetConfigFlags(FLAG_FULLSCREEN_MODE);
     // SetConfigFlags(FLAG_WINDOW_RESIZABLE);
     SetTargetFPS(30);
-    
+
     init_grid();
     init();
 
@@ -931,8 +929,10 @@ int main(void){
     screen_height = GetScreenHeight();
 
     //  2560 x 1440
-    TILE_HEIGHT = (32.0 * screen_height) / 1440;
+    TILE_HEIGHT = ceilf((32.0 * screen_height) / 1440);
     TILE_WIDTH = 2 * TILE_HEIGHT;
+
+    DEBUG_PRINT("[%.2f, %.2f]\n", TILE_WIDTH, TILE_HEIGHT);
 
     float iso_width = (grid.height + grid.width) * (TILE_WIDTH / 2.0);
     float iso_height = (grid.height + grid.width) * (TILE_HEIGHT / 2);
@@ -947,7 +947,6 @@ int main(void){
     ALL_TEXTURES[TEXTURE_GROUND_SAND_TREADED] = loadTextureFromImageResized("Blocks/blocks_32_treaded.png", TILE_WIDTH, TILE_WIDTH);
     ALL_TEXTURES[TEXTURE_GROUND_TARGET] = loadTextureFromImageResized("Blocks/blocks_100.png", TILE_WIDTH, TILE_WIDTH);
     ALL_TEXTURES[TEXTURE_GROUND_WATER] = loadTextureFromImageResized("Blocks/blocks_69.png", TILE_WIDTH, TILE_WIDTH);
-    ALL_TEXTURES[TEXTURE_GROUND_WATER_FLIP] = loadTextureFromImageFlip("Blocks/blocks_69.png");
     ALL_TEXTURES[TEXTURE_MOUSEOVER] = loadTextureFromImageResized("Blocks/blocks_99.png", TILE_WIDTH, TILE_WIDTH);
     ALL_TEXTURES[TEXTURE_WHITE_FULL_OVERLAY] = loadTextureFromImageResized("Blocks/overlay.png", TILE_WIDTH, TILE_WIDTH);
     ALL_TEXTURES[TEXTURE_WHITE_HALF_OVERLAY] = loadTextureFromImageResized("Blocks/half_overlay.png", TILE_WIDTH, TILE_WIDTH);
