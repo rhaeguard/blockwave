@@ -28,6 +28,14 @@ int compare##T(const void* a, const void* b) {  \
     return isometric_view_compare_vec2(&p1, &p2);  \
 }
 
+#define DefineSizedContainer(T, NAME) \
+typedef struct NAME { \
+    uint32_t count; \
+    uint32_t capacity; \
+    T* members; \
+} NAME
+
+
 #define vec2(xx,yy) ((Vector2) {.x=xx, .y=yy})
 #define rect(xx,yy,w,h) ((Rectangle) {.x=xx, .y=yy, .width=w, .height=h})
 // this macro assume the 'grid' variable is declared when it is used
@@ -68,11 +76,6 @@ typedef struct Enemy {
     enum EnemyType type;
 } Enemy;
 
-typedef struct Enemies {
-    uint32_t count;
-    uint32_t capacity;
-    Enemy* members;
-} Enemies;
 
 enum DefenseType {
     DEFENSE_FIRST = ENEMY_COUNT + 1, 
@@ -89,11 +92,6 @@ typedef struct Defense {
     enum DefenseType type;
 } Defense;
 
-typedef struct Defenses {
-    uint32_t count;
-    uint32_t capacity;
-    Defense* members;
-} Defenses;
 
 enum ProjectileType {
     PROJECTILE_FIRST = DEFENSE_COUNT + 1, 
@@ -110,12 +108,6 @@ typedef struct Projectile {
     float life;
     float damage;
 } Projectile;
-
-typedef struct Projectiles {
-    uint32_t count;
-    uint32_t capacity;
-    Projectile* members;
-} Projectiles;
 
 typedef struct SizedContainer {
     uint32_t count;
@@ -212,12 +204,6 @@ typedef struct Shard {
     uint8_t count;
     Color color;
 } Shard;
-
-typedef struct Shards {
-    uint32_t count;
-    uint32_t capacity;
-    Shard* members;
-} Shards;
 
 Vector2 shard_get_point(float angle, Vector2 e_radius) {
     float theta = angle * DEG2RAD;
@@ -320,6 +306,11 @@ void* resize(void* container_ptr, void* objects, size_t object_size) {
     }
     return objects;
 }
+
+DefineSizedContainer(Enemy, Enemies);
+DefineSizedContainer(Defense, Defenses);
+DefineSizedContainer(Projectile, Projectiles);
+DefineSizedContainer(Shard, Shards);
 
 /* global variables start */
 Grid grid;
@@ -1102,7 +1093,7 @@ void init_grid(void) {
 
 int main(void){
     srand(time(NULL));
-    
+
     SetTraceLogLevel(LOG_NONE);
     SetConfigFlags(FLAG_VSYNC_HINT);
     SetConfigFlags(FLAG_FULLSCREEN_MODE);
