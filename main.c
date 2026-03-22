@@ -6,10 +6,11 @@
 #include <math.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include "external/raylib/src/raylib.h"
 #include "raylib.h"
 #include "raymath.h"
 #include <time.h>
+#include "utils.h"
+#include "shards.h"
 
 #define DEBUG 1
 #define DEBUG_PRINT if (DEBUG) printf
@@ -17,7 +18,7 @@
 #define ADD_ENEMIES if (true)
 
 // this macro assume the 'isometric_view_compare_vec2' function is declared when it is used
-#define COMPARE_FUNC(T) \
+#define DEFINE_COMPARE_FUNC(T) \
 int compare##T(const void* a, const void* b) {  \
     T* o1 = ( (T*) a );                         \
     T* o2 = ( (T*) b );                         \
@@ -28,22 +29,11 @@ int compare##T(const void* a, const void* b) {  \
     return isometric_view_compare_vec2(&p1, &p2);  \
 }
 
-#define DefineSizedContainer(T, NAME) \
-typedef struct NAME { \
-    uint32_t count; \
-    uint32_t capacity; \
-    T* members; \
-} NAME
-
-
-#define vec2(xx,yy) ((Vector2) {.x=xx, .y=yy})
-#define rect(xx,yy,w,h) ((Rectangle) {.x=xx, .y=yy, .width=w, .height=h})
 // this macro assume the 'grid' variable is declared when it is used
 #define grid_cell_at(x,y) (grid.cells[y*grid.width+x])
 
 float TILE_WIDTH = 64;
 float TILE_HEIGHT = 32;
-// TODO: we need a better data structure to indicate enemy-treaded cells
 float VERTICAL_OFFSET;
 float HORIZONTAL_OFFSET;
 Vector2 DUMMY_REFERENCE = {.x=99999, .y=99999};
@@ -76,7 +66,6 @@ typedef struct Enemy {
     enum EnemyType type;
 } Enemy;
 
-
 enum DefenseType {
     DEFENSE_FIRST = ENEMY_COUNT + 1, 
     DEFENSE_TYPE_1 = ENEMY_COUNT + 1,
@@ -108,11 +97,6 @@ typedef struct Projectile {
     float life;
     float damage;
 } Projectile;
-
-typedef struct SizedContainer {
-    uint32_t count;
-    uint32_t capacity;
-} SizedContainer;
 
 enum TextureIds {
     TEXTURE_GROUND_GRASS,
@@ -187,126 +171,6 @@ typedef struct Grid {
     GridCell* cells; // 2D array of cells
 } Grid;
 
-// returns a random float between [0, 1]
-static inline float get_random_float() {
-    float r = (float)rand() / (float)RAND_MAX;
-    return r;
-}
-
-// Shards start
-typedef struct Shard {
-    float life;
-    float radius;
-    Vector2 position;
-    Vector2 velocity;
-    Vector2 poly_points[7];
-    float angles[7];
-    uint8_t count;
-    Color color;
-} Shard;
-
-Vector2 shard_get_point(float angle, Vector2 e_radius) {
-    float theta = angle * DEG2RAD;
-
-    float x = e_radius.x * cosf(theta);
-    float y = e_radius.y * sinf(theta);
-
-    return vec2(x, y);
-}
-
-int compare_floats(const void *a, const void *b) {
-    float fa = *(const float*)a;
-    float fb = *(const float*)b;
-
-    if (fa < fb) return -1;
-    if (fa > fb) return  1;
-    return 0;   // equal
-}
-
-void shards_set_angles(Shard* shard) {
-    int n = 3+ rand() % 5; // at most  7 angles
-
-    for (uint8_t i = 0; i < n; i++) {
-        float r = (float)rand() / (float)RAND_MAX;
-        shard->angles[i] = r * 355.23;
-    }
-
-    shard->count = n;
-    qsort(shard->angles, shard->count, sizeof(float), compare_floats);
-}
-
-void shards_get_polygon(
-    Vector2 e_radius,
-    Shard* shard
-) {
-    qsort(shard->angles, shard->count, sizeof(float), compare_floats);
-
-    for (uint8_t i = 0; i < shard->count; i++) {
-        Vector2 pt = shard_get_point(shard->angles[i], e_radius);
-        shard->poly_points[i] = Vector2Add(pt, shard->position);
-    }
-}
-
-void shard_update(Shard* shard) {
-    shard->life -= 0.0167 * 2;
-
-    if (shard->life <= 0) {
-        return;
-    }
-
-    shard->position = Vector2Add(shard->position, shard->velocity);
-
-    for (uint8_t i = 0; i < shard->count; i++) {
-        shard->angles[i] += 10.0;
-    }
-
-    Vector2 e_radius = vec2(
-        shard->radius * 1.5,
-        shard->radius
-    );
-
-    shards_get_polygon(e_radius, shard);
-}
-
-void shard_draw(const Shard* shard) {
-    if (shard->life <= 0) {
-        return;
-    }
-
-    float alpha = shard->life / 2.0;
-
-    Vector2 p0 = shard->poly_points[0];
-
-    uint8_t count = shard->count;
-
-    for (uint8_t i=1; i<count-1; i++) {
-        Vector2 p1 = shard->poly_points[i%count];
-        Vector2 p2 = shard->poly_points[i+1];
-
-        DrawTriangle(
-            p2,
-            p1,
-            p0,
-            ColorAlpha(shard->color, alpha)
-        );
-    }
-}
-// Shards end
-
-// TODO: add downsizing to dynamic containers
-void* resize(void* container_ptr, void* objects, size_t object_size) {
-    SizedContainer* container = (SizedContainer*) container_ptr;
-    if (container->count >= container->capacity) {
-        if (container->capacity == 0) {
-            container->capacity = 256;
-        } else {
-            container->capacity *= 1.5;
-        }
-        return realloc(objects, container->capacity * object_size);
-    }
-    return objects;
-}
-
 DefineSizedContainer(Enemy, Enemies);
 DefineSizedContainer(Defense, Defenses);
 DefineSizedContainer(Projectile, Projectiles);
@@ -371,19 +235,9 @@ static inline int isometric_view_compare_vec2(const Vector2* p1, const Vector2* 
     return p1->x - p2->x;
 }
 
-COMPARE_FUNC(Enemy)
-COMPARE_FUNC(Defense)
-COMPARE_FUNC(Projectile)
-
-int compare_shards(const void *a, const void *b) {
-  Shard *o1 = ((Shard *)a);
-  Shard *o2 = ((Shard *)b);
-  if (o1->life <= 0)
-    return 1;
-  if (o2->life <= 0)
-    return -1;
-  return 0;
-}
+DEFINE_COMPARE_FUNC(Enemy)
+DEFINE_COMPARE_FUNC(Defense)
+DEFINE_COMPARE_FUNC(Projectile)
 
 enum GameObjectType isometric_view_compare(
     const Defense* d,
@@ -675,24 +529,17 @@ void update() {
             continue;
         }
 
-        // TODO: projectile generation should be based on charging a certain bar 
-        // which would be higher/lower depending on the effectiveness of the projectile
+        // TODO: projectile generation should be based on charging a certain bar which would be higher/lower depending on the effectiveness of the projectile
         double time_passed = GetTime() - defense->last_attacked;
         double min_wait_time = inventory.defense_items[defense->type - DEFENSE_FIRST].charging_cadence_seconds;
         if (time_passed < min_wait_time) { continue; }
-        
-        Vector2 p = defense->current_grid_coord;
+
         // TODO: better way to quickly check if enemy is on this lane is needed
-        for (uint32_t i=0; i < enemies.count; i++) {
-            Enemy* enemy = &(enemies.members[i]);
-            if (enemy->current_grid_coord.y == p.y) {
-                // only shoot if there's an enemy on the lane
-                DefenseItem item = inventory.defense_items[defense->type - DEFENSE_FIRST];
-                add_projectile(p.x-1, p.y, p, item.projectile_type, item.damage);
-                defense->last_attacked = GetTime();
-                break;
-            }
-        }
+        // TODO: only shoot if there's an enemy on the lane
+        Vector2 p = defense->current_grid_coord;
+        DefenseItem item = inventory.defense_items[defense->type - DEFENSE_FIRST];
+        add_projectile(p.x-1, p.y, p, item.projectile_type, item.damage);
+        defense->last_attacked = GetTime();
     }
 
     qsort(defenses.members, defenses.count, sizeof(Defense), compareDefense);
@@ -951,31 +798,6 @@ void draw_hud() {
     }
 }
 
-Texture2D loadTextureFromImageResized(const char* filename, int newWidth, int newHeight) {
-    char path[256];
-    sprintf(path, "./assets/%s", filename);
-    Image image = LoadImage(path);
-    ImageResize(&image, newWidth, newHeight);
-    Texture2D texture = LoadTextureFromImage(image);
-    UnloadImage(image);
-    return texture;
-}
-
-Texture2D loadTextureFromImageFlip(const char* filename) {
-    char path[256];
-    sprintf(path, "./assets/%s", filename);
-    Image image = LoadImage(path);
-    ImageFlipHorizontal(&image);
-    Texture2D texture = LoadTextureFromImage(image);
-    UnloadImage(image);
-    return texture;
-}
-
-static inline Texture2D loadTextureFromImage(const char* filename) {
-    return loadTextureFromImageResized(filename, TILE_WIDTH, TILE_WIDTH);
-}
-
-
 void init(void) {
     enemies = (Enemies){0};
     enemies.members = resize(&enemies, enemies.members, sizeof(Enemy));
@@ -1117,27 +939,27 @@ int main(void){
     HORIZONTAL_OFFSET = (screen_width - iso_width) / 2.0 + grid.height * TILE_WIDTH / 2.0;
     VERTICAL_OFFSET = (screen_height - iso_height) / 2.0;
 
-    ALL_TEXTURES[TEXTURE_GROUND_GRASS] = loadTextureFromImage("Blocks/blocks_1.png");
-    ALL_TEXTURES[TEXTURE_GROUND_GRASS_TREADED] = loadTextureFromImage("Blocks/blocks_1_treaded.png");
-    ALL_TEXTURES[TEXTURE_GROUND_PAVEMENT] = loadTextureFromImage("Blocks/blocks_56.png");
-    ALL_TEXTURES[TEXTURE_GROUND_PAVEMENT_TREADED] = loadTextureFromImage("Blocks/blocks_56_treaded.png");
-    ALL_TEXTURES[TEXTURE_GROUND_SAND] = loadTextureFromImage("Blocks/blocks_32.png");
-    ALL_TEXTURES[TEXTURE_GROUND_SAND_TREADED] = loadTextureFromImage("Blocks/blocks_32_treaded.png");
-    ALL_TEXTURES[TEXTURE_GROUND_TARGET] = loadTextureFromImage("Blocks/blocks_100.png");
-    ALL_TEXTURES[TEXTURE_GROUND_WATER] = loadTextureFromImage("Blocks/blocks_69.png");
+    ALL_TEXTURES[TEXTURE_GROUND_GRASS] = loadTextureFromImageResized("Blocks/blocks_1.png", TILE_WIDTH, TILE_WIDTH);
+    ALL_TEXTURES[TEXTURE_GROUND_GRASS_TREADED] = loadTextureFromImageResized("Blocks/blocks_1_treaded.png", TILE_WIDTH, TILE_WIDTH);
+    ALL_TEXTURES[TEXTURE_GROUND_PAVEMENT] = loadTextureFromImageResized("Blocks/blocks_56.png", TILE_WIDTH, TILE_WIDTH);
+    ALL_TEXTURES[TEXTURE_GROUND_PAVEMENT_TREADED] = loadTextureFromImageResized("Blocks/blocks_56_treaded.png", TILE_WIDTH, TILE_WIDTH);
+    ALL_TEXTURES[TEXTURE_GROUND_SAND] = loadTextureFromImageResized("Blocks/blocks_32.png", TILE_WIDTH, TILE_WIDTH);
+    ALL_TEXTURES[TEXTURE_GROUND_SAND_TREADED] = loadTextureFromImageResized("Blocks/blocks_32_treaded.png", TILE_WIDTH, TILE_WIDTH);
+    ALL_TEXTURES[TEXTURE_GROUND_TARGET] = loadTextureFromImageResized("Blocks/blocks_100.png", TILE_WIDTH, TILE_WIDTH);
+    ALL_TEXTURES[TEXTURE_GROUND_WATER] = loadTextureFromImageResized("Blocks/blocks_69.png", TILE_WIDTH, TILE_WIDTH);
     ALL_TEXTURES[TEXTURE_GROUND_WATER_FLIP] = loadTextureFromImageFlip("Blocks/blocks_69.png");
-    ALL_TEXTURES[TEXTURE_MOUSEOVER] = loadTextureFromImage("Blocks/blocks_99.png");
-    ALL_TEXTURES[TEXTURE_WHITE_FULL_OVERLAY] = loadTextureFromImage("Blocks/overlay.png");
-    ALL_TEXTURES[TEXTURE_WHITE_HALF_OVERLAY] = loadTextureFromImage("Blocks/half_overlay.png");
-    ALL_TEXTURES[TEXTURE_ENEMY_TYPE_1] = loadTextureFromImage("Blocks/blocks_30.png");
-    ALL_TEXTURES[TEXTURE_ENEMY_TYPE_2] = loadTextureFromImage("Blocks/blocks_31.png");
-    ALL_TEXTURES[TEXTURE_DEFENDER_TYPE_1] = loadTextureFromImage("Blocks/blocks_24.png");
-    ALL_TEXTURES[TEXTURE_DEFENDER_TYPE_2] = loadTextureFromImage("Blocks/blocks_58.png");
-    ALL_TEXTURES[TEXTURE_DEFENDER_TYPE_3] = loadTextureFromImage("Blocks/blocks_14.png");
+    ALL_TEXTURES[TEXTURE_MOUSEOVER] = loadTextureFromImageResized("Blocks/blocks_99.png", TILE_WIDTH, TILE_WIDTH);
+    ALL_TEXTURES[TEXTURE_WHITE_FULL_OVERLAY] = loadTextureFromImageResized("Blocks/overlay.png", TILE_WIDTH, TILE_WIDTH);
+    ALL_TEXTURES[TEXTURE_WHITE_HALF_OVERLAY] = loadTextureFromImageResized("Blocks/half_overlay.png", TILE_WIDTH, TILE_WIDTH);
+    ALL_TEXTURES[TEXTURE_ENEMY_TYPE_1] = loadTextureFromImageResized("Blocks/blocks_30.png", TILE_WIDTH, TILE_WIDTH);
+    ALL_TEXTURES[TEXTURE_ENEMY_TYPE_2] = loadTextureFromImageResized("Blocks/blocks_31.png", TILE_WIDTH, TILE_WIDTH);
+    ALL_TEXTURES[TEXTURE_DEFENDER_TYPE_1] = loadTextureFromImageResized("Blocks/blocks_24.png", TILE_WIDTH, TILE_WIDTH);
+    ALL_TEXTURES[TEXTURE_DEFENDER_TYPE_2] = loadTextureFromImageResized("Blocks/blocks_58.png", TILE_WIDTH, TILE_WIDTH);
+    ALL_TEXTURES[TEXTURE_DEFENDER_TYPE_3] = loadTextureFromImageResized("Blocks/blocks_14.png", TILE_WIDTH, TILE_WIDTH);
     ALL_TEXTURES[TEXTURE_PROJECTILE_1] = loadTextureFromImageResized("Custom/projectile_blue.png", TILE_WIDTH / 4, TILE_WIDTH / 4);
     ALL_TEXTURES[TEXTURE_PROJECTILE_2] = loadTextureFromImageResized("Custom/projectile_orange.png", TILE_WIDTH / 2, TILE_WIDTH / 2);
     ALL_TEXTURES[TEXTURE_PROJECTILE_3] = loadTextureFromImageResized("Custom/projectile_red.png", TILE_WIDTH / 2, TILE_WIDTH / 2);
-    ALL_TEXTURES[TEXTURE_RED] = loadTextureFromImage("Blocks/blocks_96.png");
+    ALL_TEXTURES[TEXTURE_RED] = loadTextureFromImageResized("Blocks/blocks_96.png", TILE_WIDTH, TILE_WIDTH);
 
     Image image = GenImageColor(TILE_WIDTH, TILE_HEIGHT * 2, ColorAlpha(WHITE, 0.5));
     ALL_TEXTURES[TEXTURE_WHITE_BLOCK_OVERLAY] = LoadTextureFromImage(image);
